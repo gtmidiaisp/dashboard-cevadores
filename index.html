@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Cevadores</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { meta: '#1877F2' }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { background: #0f172a; color: #f1f5f9; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+    .kpi-value { font-size: clamp(1.1rem, 3vw, 1.6rem); font-weight: 700; }
+    th { user-select: none; }
+    th:hover { color: #f1f5f9; }
+    tr:hover td { background: rgba(51,65,85,0.4); }
+    @media (max-width: 640px) {
+      .chart-h { height: 220px !important; }
+      .chart-h-sm { height: 180px !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <header style="background:#1e293b;border-bottom:1px solid #334155" class="sticky top-0 z-10 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-white leading-tight">Dashboard · Cevadores</h1>
+          <p class="text-xs" style="color:#64748b">Meta Ads · Kommo CRM</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <label class="text-xs" style="color:#94a3b8">De</label>
+          <input type="date" id="dateFrom"
+            class="rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            style="background:#0f172a;border:1px solid #475569">
+          <label class="text-xs" style="color:#94a3b8">Até</label>
+          <input type="date" id="dateTo"
+            class="rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            style="background:#0f172a;border:1px solid #475569">
+        </div>
+        <button id="btnApply"
+          class="rounded px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+          style="background:#1877F2" onmouseover="this.style.background='#1565d0'" onmouseout="this.style.background='#1877F2'">
+          Filtrar
+        </button>
+        <button id="btnReload" title="Recarregar dados da planilha"
+          class="rounded px-2.5 py-1.5 text-sm transition-colors"
+          style="background:#334155;color:#94a3b8" onmouseover="this.style.background='#475569'" onmouseout="this.style.background='#334155'">
+          ↻
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-4 sm:px-6 sm:py-6">
+
+    <!-- Status -->
+    <div class="flex items-center gap-2 mb-5 text-xs" style="color:#64748b">
+      <span id="statusDot" class="inline-block w-2 h-2 rounded-full" style="background:#eab308"></span>
+      <span id="statusText">Carregando dados da planilha...</span>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+      <div class="card p-4">
+        <p class="text-xs mb-1.5 font-medium tracking-wide uppercase" style="color:#64748b">Leads</p>
+        <p id="kpiLeads" class="kpi-value text-white">—</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs mb-1.5 font-medium tracking-wide uppercase" style="color:#64748b">MQLs</p>
+        <p id="kpiMqls" class="kpi-value" style="color:#22d3ee">—</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs mb-1.5 font-medium tracking-wide uppercase" style="color:#64748b">Conversão</p>
+        <p id="kpiConv" class="kpi-value" style="color:#4ade80">—</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs mb-1.5 font-medium tracking-wide uppercase" style="color:#64748b">CPL</p>
+        <p id="kpiCpl" class="kpi-value text-white">—</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs mb-1.5 font-medium tracking-wide uppercase" style="color:#64748b">CPMQL</p>
+        <p id="kpiCpmql" class="kpi-value text-white">—</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs mb-1.5 font-medium tracking-wide uppercase" style="color:#64748b">Investimento</p>
+        <p id="kpiInvest" class="kpi-value" style="color:#60a5fa; font-size: clamp(0.85rem, 2.5vw, 1.2rem)">—</p>
+      </div>
+    </div>
+
+    <!-- Charts row 1: Campaigns + Segments -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+      <div class="card p-4 lg:col-span-2">
+        <h2 class="text-xs font-semibold uppercase tracking-wide mb-3" style="color:#94a3b8">Leads e MQLs por Campanha</h2>
+        <div class="chart-h" style="height:260px;position:relative">
+          <canvas id="chartCampaigns"></canvas>
+        </div>
+      </div>
+      <div class="card p-4">
+        <h2 class="text-xs font-semibold uppercase tracking-wide mb-3" style="color:#94a3b8">Tamanho de Cliente</h2>
+        <div class="chart-h" style="height:260px;position:relative">
+          <canvas id="chartSegments"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart row 2: Ads CPL -->
+    <div class="card p-4 mb-4">
+      <h2 class="text-xs font-semibold uppercase tracking-wide mb-3" style="color:#94a3b8">CPL por Anúncio — menor é melhor <span style="color:#22d3ee">■</span> = 3+ MQLs</h2>
+      <div class="chart-h-sm" style="height:200px;position:relative">
+        <canvas id="chartAds"></canvas>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card overflow-hidden mb-6">
+      <div class="px-4 py-3" style="border-bottom:1px solid #334155">
+        <h2 class="text-xs font-semibold uppercase tracking-wide" style="color:#94a3b8">Campanhas Detalhadas</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs sm:text-sm" id="campaignTable">
+          <thead style="border-bottom:1px solid #334155">
+            <tr>
+              <th class="text-left px-4 py-3 font-medium cursor-pointer" style="color:#64748b" data-col="campanha">Campanha ↕</th>
+              <th class="text-right px-3 py-3 font-medium cursor-pointer" style="color:#64748b" data-col="leads">Leads ↕</th>
+              <th class="text-right px-3 py-3 font-medium cursor-pointer" style="color:#64748b" data-col="mqls">MQLs ↕</th>
+              <th class="text-right px-3 py-3 font-medium cursor-pointer hidden sm:table-cell" style="color:#64748b" data-col="conv">Conv% ↕</th>
+              <th class="text-right px-3 py-3 font-medium cursor-pointer hidden md:table-cell" style="color:#64748b" data-col="investimento">Investimento ↕</th>
+              <th class="text-right px-3 py-3 font-medium cursor-pointer" style="color:#64748b" data-col="cpl">CPL ↕</th>
+              <th class="text-right px-3 py-3 font-medium cursor-pointer hidden sm:table-cell" style="color:#64748b" data-col="cpmql">CPMQL ↕</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" style="divide-color:#334155">
+            <tr><td colspan="7" class="px-4 py-10 text-center" style="color:#475569">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="text-center text-xs pb-6" style="color:#334155">
+      Atualizado em <span id="lastUpdate">—</span> · GT Mídia
+    </p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
