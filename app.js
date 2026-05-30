@@ -330,7 +330,7 @@ function renderHead(headId, tableId) {
       if (tableSort[tbl].col === col) tableSort[tbl].asc = !tableSort[tbl].asc;
       else { tableSort[tbl].col = col; tableSort[tbl].asc = false; }
       const filter = getFilter();
-      const leads  = allLeads.filter(l => inRange(l, filter));
+      const leads  = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
       const costs  = allCosts.filter(c => inRange(c, filter));
       const data   = aggregateGroup(leads, costs, ...getKeyFns(tbl));
       renderHead(headId, tbl);
@@ -364,6 +364,14 @@ function renderBody(bodyId, data, tableId) {
 
   const mqlColor = C.yellow;
 
+  // Totals from full data set (regardless of sort order)
+  const tLeads  = data.reduce((s, r) => s + r.leads, 0);
+  const tMqls   = data.reduce((s, r) => s + r.mqls,  0);
+  const tInvest = data.reduce((s, r) => s + r.investimento, 0);
+  const tCpl    = tLeads > 0 && tInvest > 0 ? tInvest / tLeads : null;
+  const tCpmql  = tMqls  > 0 && tInvest > 0 ? tInvest / tMqls  : null;
+  const tSegs   = SEGMENTS.map(s => data.reduce((sum, r) => sum + r.segs[s.key], 0));
+
   tbody.innerHTML = sorted.map((r, i) => `
     <tr style="background:${i % 2 ? 'transparent' : 'rgba(252,188,6,0.02)'}">
       <td class="px-3 py-2.5" style="color:#e0e0e0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${labelOf(r.name, 38)}</td>
@@ -379,7 +387,22 @@ function renderBody(bodyId, data, tableId) {
       <td class="px-3 py-2.5 text-right font-mono text-white">${r.cpl != null ? fmtBRL(r.cpl) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${r.cpmql != null ? '#9a9a9a' : '#3a3a3a'}">${r.cpmql != null ? fmtBRL(r.cpmql) : 'SEM MQL'}</td>
     </tr>
-  `).join('');
+  `).join('') + `
+    <tr style="background:#1a1a1a;border-top:2px solid #FCBC06">
+      <td class="px-3 py-2.5 text-xs font-bold" style="color:#FCBC06">TOTAL</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold text-white">${tLeads}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${tSegs[0]}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${tSegs[1]}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${tSegs[2]}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${tSegs[3]}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${tSegs[4]}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${mqlColor}">${tMqls}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold text-white">${fmtPct(tMqls, tLeads)}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${tInvest > 0 ? fmtBRL(tInvest) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold text-white">${tCpl != null ? fmtBRL(tCpl) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${tCpmql != null ? '#9a9a9a' : '#3a3a3a'}">${tCpmql != null ? fmtBRL(tCpmql) : 'SEM MQL'}</td>
+    </tr>
+  `;
 }
 
 function renderAllTables(leads, costs) {
@@ -401,20 +424,49 @@ function setStatus(text, state) {
   dot.style.background = state === 'ok' ? '#4ade80' : state === 'err' ? '#f87171' : C.yellow;
 }
 
-function setDefaultDates() {
-  const all = [...allLeads, ...allCosts].map(x => x.date.getTime()).filter(Boolean);
-  if (!all.length) return;
-  const min = new Date(Math.min(...all));
-  const max = new Date(Math.max(...all));
-  document.getElementById('dateFrom').value = min.toISOString().slice(0, 10);
-  document.getElementById('dateTo').value   = max.toISOString().slice(0, 10);
+function toInputDate(d) { return d.toISOString().slice(0, 10); }
+
+function setDates(from, to) {
+  document.getElementById('dateFrom').value = toInputDate(from);
+  document.getElementById('dateTo').value   = toInputDate(to);
+}
+
+let activePeriod = 'month';
+
+function applyPeriod(period, skipRender) {
+  activePeriod = period;
+  const now = new Date();
+
+  if (period === 'yesterday') {
+    const d = new Date(now); d.setDate(d.getDate() - 1);
+    setDates(d, d);
+  } else if (period === 'week') {
+    const day = now.getDay(); // 0=Sun,1=Mon...
+    const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    setDates(mon, sun);
+  } else if (period === 'month') {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setDates(first, last);
+  }
+  // 'custom' just shows the pickers, no auto-dates
+
+  const customEl = document.getElementById('customDates');
+  if (customEl) customEl.style.display = period === 'custom' ? 'flex' : 'none';
+
+  document.querySelectorAll('[data-period]').forEach(b => {
+    b.classList.toggle('active', b.dataset.period === period);
+  });
+
+  if (!skipRender && period !== 'custom') render();
 }
 
 // ── Main render ─────────────────────────────────────────────────
 
 function render() {
   const filter = getFilter();
-  const leads  = allLeads.filter(l => inRange(l, filter));
+  const leads  = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
   const costs  = allCosts.filter(c => inRange(c, filter));
 
   renderKpis(leads, costs);
@@ -435,7 +487,7 @@ async function loadData() {
     allLeads = parseCSV(kt).slice(1).map(parseLead).filter(Boolean);
     allCosts = parseCSV(ft).slice(1).map(parseCost).filter(Boolean);
 
-    if (!document.getElementById('dateFrom').value) setDefaultDates();
+    applyPeriod(activePeriod, true); // restore active period dates without re-rendering yet
 
     const ts = new Date().toLocaleString('pt-BR');
     document.getElementById('lastUpdate').textContent = ts;
@@ -471,5 +523,9 @@ document.querySelectorAll('.sec-btn').forEach(btn => {
 
 document.getElementById('btnApply').addEventListener('click', render);
 document.getElementById('btnReload').addEventListener('click', loadData);
+
+document.querySelectorAll('[data-period]').forEach(btn => {
+  btn.addEventListener('click', () => applyPeriod(btn.dataset.period));
+});
 
 loadData();

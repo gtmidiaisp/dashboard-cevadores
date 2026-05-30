@@ -38,6 +38,11 @@
     .kpi-val { font-size: clamp(1.2rem, 3vw, 1.75rem); font-weight: 700; line-height: 1.1; }
     .kpi-val-sm { font-size: clamp(0.95rem, 2.5vw, 1.25rem); font-weight: 700; line-height: 1.1; }
 
+    /* Period buttons */
+    .period-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; color: #6B6B6B; cursor: pointer; border: 1px solid #2a2a2a; background: #1a1a1a; transition: all .15s; }
+    .period-btn.active { background: #FCBC06; color: #000; border-color: #FCBC06; }
+    .period-btn:not(.active):hover { color: #fff; border-color: #444; }
+
     /* Date inputs */
     input[type="date"] { color-scheme: dark; }
     input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5) sepia(1) saturate(5) hue-rotate(10deg); }
@@ -73,17 +78,25 @@
 
         <!-- Controls -->
         <div class="flex flex-wrap items-center gap-2">
-          <label class="text-xs" style="color:#6B6B6B">De</label>
-          <input type="date" id="dateFrom"
-            class="rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
-            style="background:#1a1a1a;border:1px solid #2a2a2a">
-          <label class="text-xs" style="color:#6B6B6B">Até</label>
-          <input type="date" id="dateTo"
-            class="rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
-            style="background:#1a1a1a;border:1px solid #2a2a2a">
-          <button id="btnApply"
-            class="rounded-lg px-4 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
-            style="background:#FCBC06">Filtrar</button>
+          <!-- Period buttons -->
+          <div class="flex gap-1 flex-wrap">
+            <button class="period-btn" data-period="yesterday">Ontem</button>
+            <button class="period-btn" data-period="week">Esta semana</button>
+            <button class="period-btn active" data-period="month">Este mês</button>
+            <button class="period-btn" data-period="custom">Personalizado</button>
+          </div>
+          <!-- Custom date pickers (hidden by default) -->
+          <div id="customDates" style="display:none" class="flex items-center gap-1.5 flex-wrap">
+            <input type="date" id="dateFrom"
+              class="rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+              style="background:#1a1a1a;border:1px solid #2a2a2a">
+            <input type="date" id="dateTo"
+              class="rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+              style="background:#1a1a1a;border:1px solid #2a2a2a">
+            <button id="btnApply"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold text-black"
+              style="background:#FCBC06">Filtrar</button>
+          </div>
           <button id="btnReload" title="Recarregar dados"
             class="rounded-lg px-2.5 py-1.5 text-sm transition-colors hover:text-white"
             style="background:#1a1a1a;border:1px solid #2a2a2a;color:#6B6B6B">↻</button>
