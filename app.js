@@ -645,6 +645,10 @@ function applyPeriod(period, skipRender) {
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
     const last  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     setDates(first, last);
+  } else if (period === 'lastmonth') {
+    const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const last  = new Date(now.getFullYear(), now.getMonth(), 0);
+    setDates(first, last);
   }
   // 'custom' just shows the pickers, no auto-dates
 
