@@ -27,6 +27,8 @@
     .sec-btn:not(.active):hover { color: #fff; }
     .sec-panel { display: none; }
     .sec-panel.active { display: block; }
+    .sec-panel-com { display: none; }
+    .sec-panel-com.active { display: block; }
 
     /* Tables */
     th { user-select: none; white-space: nowrap; }
@@ -106,7 +108,8 @@
       <!-- Tabs -->
       <div class="flex gap-2 mt-3">
         <button class="tab-btn active" data-tab="overview">Visão Geral</button>
-        <button class="tab-btn" data-tab="tables">Tabelas</button>
+        <button class="tab-btn" data-tab="tables">Marketing</button>
+        <button class="tab-btn" data-tab="comercial">Comercial</button>
       </div>
     </div>
   </header>
@@ -122,8 +125,8 @@
     <!-- ── TAB 1: VISÃO GERAL ── -->
     <div id="tab-overview" class="tab-panel active">
 
-      <!-- KPI Cards -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+      <!-- KPI Cards — Linha 1: Volumes (funil) -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
         <div class="card p-4">
           <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Leads</p>
           <p id="kpiLeads" class="kpi-val text-white">—</p>
@@ -133,8 +136,28 @@
           <p id="kpiMqls" class="kpi-val" style="color:#FCBC06">—</p>
         </div>
         <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Reun. Agendadas</p>
+          <p id="kpiReunAgend" class="kpi-val text-white">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Reun. Realizadas</p>
+          <p id="kpiReunReal" class="kpi-val text-white">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Vendas</p>
+          <p id="kpiVendas" class="kpi-val" style="color:#FCBC06">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Investimento</p>
+          <p id="kpiInvest" class="kpi-val-sm" style="color:#FCBC06">—</p>
+        </div>
+      </div>
+
+      <!-- KPI Cards — Linha 2: Custos unitários -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+        <div class="card p-4">
           <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Taxa de MQL</p>
-          <p id="kpiConv" class="kpi-val text-white">—</p>
+          <p id="kpiConv" class="kpi-val-sm text-white">—</p>
         </div>
         <div class="card p-4">
           <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">CPL</p>
@@ -145,8 +168,16 @@
           <p id="kpiCpmql" class="kpi-val-sm text-white">—</p>
         </div>
         <div class="card p-4">
-          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Investimento</p>
-          <p id="kpiInvest" class="kpi-val-sm" style="color:#FCBC06">—</p>
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">CPRA</p>
+          <p id="kpiCpra" class="kpi-val-sm text-white">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">CPRR</p>
+          <p id="kpiCprr" class="kpi-val-sm text-white">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">CPV</p>
+          <p id="kpiCpv" class="kpi-val-sm text-white">—</p>
         </div>
       </div>
 
@@ -229,6 +260,57 @@
             <tbody id="bodyAnuncios">
               <tr><td colspan="12" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
             </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── TAB 3: COMERCIAL ── -->
+    <div id="tab-comercial" class="tab-panel">
+
+      <!-- Sub-section toggle -->
+      <div class="flex gap-2 mb-5 flex-wrap">
+        <button class="sec-btn active" data-sec-com="campanhasC">Campanhas</button>
+        <button class="sec-btn" data-sec-com="conjuntosC">Conjuntos</button>
+        <button class="sec-btn" data-sec-com="anunciosC">Anúncios</button>
+      </div>
+
+      <!-- Campanhas Comercial -->
+      <div id="sec-com-campanhasC" class="sec-panel-com active card overflow-hidden">
+        <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Campanhas — Comercial</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead style="background:#0d0d0d"><tr id="headComCampanhas"></tr></thead>
+            <tbody id="bodyComCampanhas"><tr><td colspan="13" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Conjuntos Comercial -->
+      <div id="sec-com-conjuntosC" class="sec-panel-com card overflow-hidden">
+        <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Conjuntos — Comercial</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead style="background:#0d0d0d"><tr id="headComConjuntos"></tr></thead>
+            <tbody id="bodyComConjuntos"><tr><td colspan="13" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Anúncios Comercial -->
+      <div id="sec-com-anunciosC" class="sec-panel-com card overflow-hidden">
+        <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Anúncios — Comercial</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead style="background:#0d0d0d"><tr id="headComAnuncios"></tr></thead>
+            <tbody id="bodyComAnuncios"><tr><td colspan="13" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr></tbody>
           </table>
         </div>
       </div>

@@ -83,8 +83,9 @@ function parseAmount(val) {
 }
 
 // ── Row parsers ─────────────────────────────────────────────────
-// Dados Kommo Tratado: 0:Id 1:Nome 2:Data 3:Status 4:Valor 5:Base
-//                     6:Camp 7:Conj 8:Anun 9:CampTrat 10:ConjTrat 11:AnunTrat
+// Dados_Kommo: 0:Id 1:Nome 2:Data 3:Status 4:Valor 5:Base
+//             6:Camp 7:Conj 8:Anun 9:CampTrat 10:ConjTrat 11:AnunTrat
+//             12:DataAgend 13:DataReuniao 14:Auditoria 15:DataEntrada 16:Produto
 
 function parseLead(row) {
   if (!row || row.length < 3) return null;
@@ -92,10 +93,14 @@ function parseLead(row) {
   if (!date || isNaN(date)) return null;
   return {
     date,
-    baseClientes:     row[5]  || '',
-    campanhaTratada:  row[9]  || '',
-    conjuntoTratado:  row[10] || '',
-    anuncioTratado:   row[11] || '',
+    baseClientes:    row[5]  || '',
+    campanhaTratada: row[9]  || '',
+    conjuntoTratado: row[10] || '',
+    anuncioTratado:  row[11] || '',
+    dataAgend:       row[12] || '',
+    dataReuniao:     parseDate(row[13]),   // filtrado por data da reunião
+    auditoria:       row[14] || '',
+    dataEntrada:     row[15] || '',
   };
 }
 
@@ -271,19 +276,35 @@ function renderSegmentChart(segs) {
 
 // ── KPI cards ───────────────────────────────────────────────────
 
-function renderKpis(leads, costs) {
-  const total  = leads.length;
-  const mqls   = leads.filter(isMql).length;
-  const invest = costs.reduce((s, c) => s + c.amountSpent, 0);
-  const cpl    = total > 0 && invest > 0 ? invest / total : null;
-  const cpmql  = mqls  > 0 && invest > 0 ? invest / mqls  : null;
+function renderKpis(leads, costs, reunReais) {
+  const total     = leads.length;
+  const mqls      = leads.filter(isMql).length;
+  const invest    = costs.reduce((s, c) => s + c.amountSpent, 0);
+  const cpl       = total > 0 && invest > 0 ? invest / total : null;
+  const cpmql     = mqls  > 0 && invest > 0 ? invest / mqls  : null;
 
-  document.getElementById('kpiLeads').textContent  = total.toLocaleString('pt-BR');
-  document.getElementById('kpiMqls').textContent   = mqls.toLocaleString('pt-BR');
-  document.getElementById('kpiConv').textContent   = fmtPct(mqls, total);
-  document.getElementById('kpiCpl').textContent    = cpl   != null ? fmtBRL(cpl)   : '—';
-  document.getElementById('kpiCpmql').textContent  = cpmql != null ? fmtBRL(cpmql) : '—';
-  document.getElementById('kpiInvest').textContent = fmtBRL(invest);
+  const reunAgend = leads.filter(function(l) { return l.dataAgend; }).length;
+  const reunReal  = reunReais.length;
+  const vendas    = leads.filter(function(l) { return l.dataEntrada; }).length;
+  const cpra      = reunAgend > 0 && invest > 0 ? invest / reunAgend : null;
+  const cprr      = reunReal  > 0 && invest > 0 ? invest / reunReal  : null;
+  const cpv       = vendas    > 0 && invest > 0 ? invest / vendas    : null;
+
+  // Linha 1 — volumes
+  document.getElementById('kpiLeads').textContent     = total.toLocaleString('pt-BR');
+  document.getElementById('kpiMqls').textContent      = mqls.toLocaleString('pt-BR');
+  document.getElementById('kpiReunAgend').textContent = reunAgend.toLocaleString('pt-BR');
+  document.getElementById('kpiReunReal').textContent  = reunReal.toLocaleString('pt-BR');
+  document.getElementById('kpiVendas').textContent    = vendas.toLocaleString('pt-BR');
+  document.getElementById('kpiInvest').textContent    = fmtBRL(invest);
+
+  // Linha 2 — custos
+  document.getElementById('kpiConv').textContent      = fmtPct(mqls, total);
+  document.getElementById('kpiCpl').textContent       = cpl   != null ? fmtBRL(cpl)   : '—';
+  document.getElementById('kpiCpmql').textContent     = cpmql != null ? fmtBRL(cpmql) : '—';
+  document.getElementById('kpiCpra').textContent      = cpra  != null ? fmtBRL(cpra)  : '—';
+  document.getElementById('kpiCprr').textContent      = cprr  != null ? fmtBRL(cprr)  : '—';
+  document.getElementById('kpiCpv').textContent       = cpv   != null ? fmtBRL(cpv)   : '—';
 }
 
 // ── Full table renderer ─────────────────────────────────────────
@@ -416,6 +437,180 @@ function renderAllTables(leads, costs) {
   });
 }
 
+// ── Aba Comercial ────────────────────────────────────────────────
+
+const TABLE_COLS_COM = [
+  { id: 'name',        label: 'Nome',        align: 'left',  sortable: true  },
+  { id: 'leads',       label: 'Leads',       align: 'right', sortable: true  },
+  { id: 'mqls',        label: 'MQL',         align: 'right', sortable: true  },
+  { id: 'conv',        label: '% MQL',       align: 'right', sortable: true  },
+  { id: 'investimento',label: 'Investimento',align: 'right', sortable: true, cls: 'hide-mobile' },
+  { id: 'cpl',         label: 'CPL',         align: 'right', sortable: true  },
+  { id: 'cpmql',       label: 'CPMQL',       align: 'right', sortable: true, cls: 'hide-mobile' },
+  { id: 'ra',          label: 'RA',          align: 'right', sortable: true  },
+  { id: 'cpra',        label: 'CPRA',        align: 'right', sortable: true, cls: 'hide-mobile' },
+  { id: 'rr',          label: 'RR',          align: 'right', sortable: true  },
+  { id: 'cprr',        label: 'CPRR',        align: 'right', sortable: true, cls: 'hide-mobile' },
+  { id: 'vendas',      label: 'Vendas',      align: 'right', sortable: true  },
+  { id: 'cpv',         label: 'CPV',         align: 'right', sortable: true, cls: 'hide-mobile' },
+];
+
+const SORT_KEYS_COM = {
+  name:         r => (r.name || '').toLowerCase(),
+  leads:        r => r.leads,
+  mqls:         r => r.mqls,
+  conv:         r => r.conv,
+  investimento: r => r.investimento,
+  cpl:          r => r.cpl    ?? Infinity,
+  cpmql:        r => r.cpmql  ?? Infinity,
+  ra:           r => r.ra,
+  cpra:         r => r.cpra   ?? Infinity,
+  rr:           r => r.rr,
+  cprr:         r => r.cprr   ?? Infinity,
+  vendas:       r => r.vendas,
+  cpv:          r => r.cpv    ?? Infinity,
+};
+
+function aggregateGroupComercial(leads, costs, reunReais, leadKey, costKey) {
+  const map = {};
+
+  for (const l of leads) {
+    const k = leadKey(l);
+    if (!k) continue;
+    if (!map[k]) map[k] = { name: k, leads: 0, mqls: 0, investimento: 0, ra: 0, rr: 0, vendas: 0 };
+    map[k].leads++;
+    if (isMql(l))       map[k].mqls++;
+    if (l.dataAgend)    map[k].ra++;
+    if (l.dataEntrada)  map[k].vendas++;
+  }
+
+  // RR: filtrado pela data da reunião, agrupado pela mesma chave
+  for (const l of reunReais) {
+    const k = leadKey(l);
+    if (k && map[k]) map[k].rr++;
+  }
+
+  for (const c of costs) {
+    const k = costKey(c);
+    if (k && map[k]) map[k].investimento += c.amountSpent;
+  }
+
+  return Object.values(map).map(r => ({
+    ...r,
+    conv:  r.leads > 0 ? r.mqls / r.leads : 0,
+    cpl:   r.leads > 0 && r.investimento > 0 ? r.investimento / r.leads  : null,
+    cpmql: r.mqls  > 0 && r.investimento > 0 ? r.investimento / r.mqls   : null,
+    cpra:  r.ra    > 0 && r.investimento > 0 ? r.investimento / r.ra     : null,
+    cprr:  r.rr    > 0 && r.investimento > 0 ? r.investimento / r.rr     : null,
+    cpv:   r.vendas > 0 && r.investimento > 0 ? r.investimento / r.vendas : null,
+  }));
+}
+
+let tableSortCom = {
+  campanhasC:  { col: 'leads', asc: false },
+  conjuntosC:  { col: 'leads', asc: false },
+  anunciosC:   { col: 'leads', asc: false },
+};
+
+function renderHeadCom(headId, tableId) {
+  const state = tableSortCom[tableId];
+  document.getElementById(headId).innerHTML = TABLE_COLS_COM.map(col => `
+    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}"
+        style="color:#6B6B6B"
+        ${col.sortable ? `data-sort-com="${col.id}" data-table-com="${tableId}"` : ''}>
+      ${col.label}${col.sortable && state.col === col.id ? (state.asc ? ' ↑' : ' ↓') : col.sortable ? ' ↕' : ''}
+    </th>
+  `).join('');
+
+  document.getElementById(headId).querySelectorAll('[data-sort-com]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sortCom, tbl = th.dataset.tableCom;
+      if (tableSortCom[tbl].col === col) tableSortCom[tbl].asc = !tableSortCom[tbl].asc;
+      else { tableSortCom[tbl].col = col; tableSortCom[tbl].asc = false; }
+      const filter    = getFilter();
+      const leads     = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
+      const costs     = allCosts.filter(c => inRange(c, filter));
+      const reunReais = allLeads.filter(l => l.campanhaTratada && l.dataReuniao && inRange({ date: l.dataReuniao }, filter));
+      const kfns      = getKeyFns(tbl.replace('C', ''));
+      renderHeadCom(headId, tbl);
+      renderBodyCom(`body${capitalize(tbl)}`, aggregateGroupComercial(leads, costs, reunReais, ...kfns), tbl);
+    });
+  });
+}
+
+function renderBodyCom(bodyId, data, tableId) {
+  const state  = tableSortCom[tableId];
+  const fn     = SORT_KEYS_COM[state.col] || (r => r[state.col]);
+  const dir    = state.asc ? 1 : -1;
+  const sorted = [...data].sort((a, b) => {
+    const av = fn(a), bv = fn(b);
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+
+  const tbody = document.getElementById(bodyId);
+  if (!sorted.length) {
+    tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-10 text-center" style="color:#3a3a3a">Sem dados no período.</td></tr>`;
+    return;
+  }
+
+  const Y = C.yellow, G = '#6B6B6B', W = '#ffffff';
+  const fmtN = v => v != null ? fmtBRL(v) : '—';
+
+  // Totais
+  const tL = data.reduce((s,r) => s + r.leads, 0);
+  const tM = data.reduce((s,r) => s + r.mqls, 0);
+  const tI = data.reduce((s,r) => s + r.investimento, 0);
+  const tRA = data.reduce((s,r) => s + r.ra, 0);
+  const tRR = data.reduce((s,r) => s + r.rr, 0);
+  const tV  = data.reduce((s,r) => s + r.vendas, 0);
+
+  tbody.innerHTML = sorted.map((r, i) => `
+    <tr style="background:${i % 2 ? 'transparent' : 'rgba(252,188,6,0.02)'}">
+      <td class="px-3 py-2.5" style="color:#e0e0e0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${labelOf(r.name, 35)}</td>
+      <td class="px-3 py-2.5 text-right font-mono" style="color:${W}">${r.leads}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-semibold" style="color:${Y}">${r.mqls}</td>
+      <td class="px-3 py-2.5 text-right font-mono" style="color:${W}">${fmtPct(r.mqls, r.leads)}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${r.investimento > 0 ? fmtBRL(r.investimento) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono" style="color:${W}">${fmtN(r.cpl)}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#9a9a9a">${r.cpmql != null ? fmtBRL(r.cpmql) : 'SEM MQL'}</td>
+      <td class="px-3 py-2.5 text-right font-mono" style="color:${Y}">${r.ra}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${fmtN(r.cpra)}</td>
+      <td class="px-3 py-2.5 text-right font-mono" style="color:${Y}">${r.rr}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${fmtN(r.cprr)}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-semibold" style="color:${Y}">${r.vendas}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${fmtN(r.cpv)}</td>
+    </tr>
+  `).join('') + `
+    <tr style="background:#1a1a1a;border-top:2px solid #FCBC06">
+      <td class="px-3 py-2.5 text-xs font-bold" style="color:#FCBC06">TOTAL</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${W}">${tL}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${Y}">${tM}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${W}">${fmtPct(tM, tL)}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${tI > 0 ? fmtBRL(tI) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${W}">${tL > 0 && tI > 0 ? fmtBRL(tI/tL) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#9a9a9a">${tM > 0 && tI > 0 ? fmtBRL(tI/tM) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${Y}">${tRA}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${tRA > 0 && tI > 0 ? fmtBRL(tI/tRA) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${Y}">${tRR}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${tRR > 0 && tI > 0 ? fmtBRL(tI/tRR) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${Y}">${tV}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${tV > 0 && tI > 0 ? fmtBRL(tI/tV) : '—'}</td>
+    </tr>
+  `;
+}
+
+function renderAllTablesComercial(leads, costs, reunReais) {
+  const tables = ['campanhas', 'conjuntos', 'anuncios'];
+  tables.forEach(t => {
+    const tCom  = t + 'C';
+    const headId = `headCom${capitalize(t)}`;
+    const bodyId = `bodyCom${capitalize(t)}`;
+    const data   = aggregateGroupComercial(leads, costs, reunReais, ...getKeyFns(t));
+    renderHeadCom(headId, tCom);
+    renderBodyCom(bodyId, data, tCom);
+  });
+}
+
 // ── Status ──────────────────────────────────────────────────────
 
 function setStatus(text, state) {
@@ -468,11 +663,16 @@ function render() {
   const filter = getFilter();
   const leads  = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
   const costs  = allCosts.filter(c => inRange(c, filter));
+  // RR: filtrado pela DATA DA REUNIÃO (não pela criação do lead)
+  const reunReais = allLeads.filter(function(l) {
+    return l.campanhaTratada && l.dataReuniao && inRange({ date: l.dataReuniao }, filter);
+  });
 
-  renderKpis(leads, costs);
+  renderKpis(leads, costs, reunReais);
   renderDailyChart(aggregateDaily(leads));
   renderSegmentChart(aggregateSegments(leads));
   renderAllTables(leads, costs);
+  renderAllTablesComercial(leads, costs, reunReais);
 }
 
 // ── Data load ───────────────────────────────────────────────────
@@ -516,6 +716,15 @@ document.querySelectorAll('.sec-btn').forEach(btn => {
     document.querySelectorAll('.sec-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById(`sec-${btn.dataset.sec}`).classList.add('active');
+  });
+});
+
+document.querySelectorAll('[data-sec-com]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-sec-com]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.sec-panel-com').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`sec-com-${btn.dataset.secCom}`).classList.add('active');
   });
 });
 
