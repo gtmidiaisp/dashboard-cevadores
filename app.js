@@ -66,8 +66,9 @@ function parseDate(val) {
     const utc = new Date((parseInt(val) - 25569) * 86400 * 1000);
     return new Date(utc.toISOString().slice(0, 10) + 'T00:00:00');
   }
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) {
-    const [d, m, y] = val.split('/');
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(val)) {
+    const datePart = val.split(' ')[0]; // ignora HH:mm se vier junto
+    const [d, m, y] = datePart.split('/');
     return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T00:00:00`);
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return new Date(val + 'T00:00:00');
