@@ -94,6 +94,7 @@ function parseLead(row) {
   if (!date || isNaN(date)) return null;
   return {
     date,
+    valor:           parseAmount(row[4]),
     baseClientes:    row[5]  || '',
     campanhaTratada: row[9]  || '',
     conjuntoTratado: row[10] || '',
@@ -284,12 +285,15 @@ function renderKpis(leads, costs, reunReais) {
   const cpl       = total > 0 && invest > 0 ? invest / total : null;
   const cpmql     = mqls  > 0 && invest > 0 ? invest / mqls  : null;
 
-  const reunAgend = leads.filter(function(l) { return l.dataAgend; }).length;
-  const reunReal  = reunReais.length;
-  const vendas    = leads.filter(function(l) { return l.dataEntrada; }).length;
-  const cpra      = reunAgend > 0 && invest > 0 ? invest / reunAgend : null;
-  const cprr      = reunReal  > 0 && invest > 0 ? invest / reunReal  : null;
-  const cpv       = vendas    > 0 && invest > 0 ? invest / vendas    : null;
+  const reunAgend   = leads.filter(function(l) { return l.dataAgend; }).length;
+  const reunReal    = reunReais.length;
+  const vendas      = leads.filter(function(l) { return l.dataEntrada; }).length;
+  const receita     = leads.reduce(function(s, l) { return s + (l.valor || 0); }, 0);
+  const cpra        = reunAgend > 0 && invest > 0 ? invest / reunAgend : null;
+  const cprr        = reunReal  > 0 && invest > 0 ? invest / reunReal  : null;
+  const cpv         = vendas    > 0 && invest > 0 ? invest / vendas    : null;
+  const ticketMedio = vendas    > 0 && receita > 0 ? receita / vendas  : null;
+  const roas        = invest    > 0 && receita > 0 ? receita / invest   : null;
 
   // Linha 1 — volumes
   document.getElementById('kpiLeads').textContent     = total.toLocaleString('pt-BR');
@@ -303,9 +307,12 @@ function renderKpis(leads, costs, reunReais) {
   document.getElementById('kpiConv').textContent      = fmtPct(mqls, total);
   document.getElementById('kpiCpl').textContent       = cpl   != null ? fmtBRL(cpl)   : '—';
   document.getElementById('kpiCpmql').textContent     = cpmql != null ? fmtBRL(cpmql) : '—';
-  document.getElementById('kpiCpra').textContent      = cpra  != null ? fmtBRL(cpra)  : '—';
-  document.getElementById('kpiCprr').textContent      = cprr  != null ? fmtBRL(cprr)  : '—';
-  document.getElementById('kpiCpv').textContent       = cpv   != null ? fmtBRL(cpv)   : '—';
+  document.getElementById('kpiCpra').textContent       = cpra        != null ? fmtBRL(cpra)        : '—';
+  document.getElementById('kpiCprr').textContent       = cprr        != null ? fmtBRL(cprr)        : '—';
+  document.getElementById('kpiCpv').textContent        = cpv         != null ? fmtBRL(cpv)         : '—';
+  document.getElementById('kpiReceita').textContent    = fmtBRL(receita);
+  document.getElementById('kpiTicket').textContent     = ticketMedio != null ? fmtBRL(ticketMedio) : '—';
+  document.getElementById('kpiRoas').textContent       = roas        != null ? roas.toFixed(2) + 'x' : '—';
 }
 
 // ── Full table renderer ─────────────────────────────────────────
