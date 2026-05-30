@@ -288,7 +288,7 @@ function renderKpis(leads, costs, reunReais) {
   const reunAgend   = leads.filter(function(l) { return l.dataAgend; }).length;
   const reunReal    = reunReais.length;
   const vendas      = leads.filter(function(l) { return l.dataEntrada; }).length;
-  const receita     = leads.reduce(function(s, l) { return s + (l.valor || 0); }, 0);
+  const receita     = leads.filter(function(l) { return l.dataEntrada; }).reduce(function(s, l) { return s + (l.valor || 0); }, 0);
   const cpra        = reunAgend > 0 && invest > 0 ? invest / reunAgend : null;
   const cprr        = reunReal  > 0 && invest > 0 ? invest / reunReal  : null;
   const cpv         = vendas    > 0 && invest > 0 ? invest / vendas    : null;
