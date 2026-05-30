@@ -182,7 +182,7 @@ function aggregateGroup(leads, costs, leadKey, costKey) {
   }));
 }
 
-function aggregateDaily(leads) {
+function aggregateDaily(leads, from, to) {
   const map = {};
   for (const l of leads) {
     const day = l.date.toISOString().slice(0, 10);
@@ -190,7 +190,33 @@ function aggregateDaily(leads) {
     map[day].leads++;
     if (isMql(l)) map[day].mqls++;
   }
-  return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Preenche todos os dias do período com 0 (para o gráfico não pular dias)
+  if (from && to) {
+    const d = new Date(from);
+    const end = new Date(to);
+    while (d <= end) {
+      const key = d.toISOString().slice(0, 10);
+      if (!map[key]) map[key] = { date: key, leads: 0, mqls: 0 };
+      d.setDate(d.getDate() + 1);
+    }
+  }
+
+  const series = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Garante mínimo de 7 datas: estende para trás se necessário
+  if (series.length < 7) {
+    const firstDate = series.length > 0
+      ? new Date(series[0].date)
+      : (from ? new Date(from) : new Date());
+    while (series.length < 7) {
+      firstDate.setDate(firstDate.getDate() - 1);
+      const key = firstDate.toISOString().slice(0, 10);
+      series.unshift({ date: key, leads: 0, mqls: 0 });
+    }
+  }
+
+  return series;
 }
 
 function aggregateSegments(leads) {
@@ -681,7 +707,7 @@ function render() {
   });
 
   renderKpis(leads, costs, reunReais);
-  renderDailyChart(aggregateDaily(leads));
+  renderDailyChart(aggregateDaily(leads, filter.from, filter.to));
   renderSegmentChart(aggregateSegments(leads));
   renderAllTables(leads, costs);
   renderAllTablesComercial(leads, costs, reunReais);
