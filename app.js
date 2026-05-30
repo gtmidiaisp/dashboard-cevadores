@@ -1,5 +1,5 @@
 const SHEET_ID = '1vyOL8IAYlsTnqvLL8_B6LeG5P2BOPyATnjTIEZxgCK0';
-const KOMMO_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Dados%20Kommo%20Tratado`;
+const KOMMO_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Dados_Kommo`;
 const FB_URL    = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Custos_Facebook`;
 
 // GT Mídia brand colors
