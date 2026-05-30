@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Cevadores · gt.mídia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { font-family: 'DM Sans', system-ui, sans-serif; }
+    body { background: #0a0a0a; color: #fff; }
+    .card { background: #111111; border: 1px solid #2a2a2a; border-radius: 12px; }
+
+    /* Tab navigation */
+    .tab-btn { padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; color: #6B6B6B; transition: all .2s; cursor: pointer; border: 1px solid transparent; }
+    .tab-btn.active { background: #FCBC06; color: #000; border-color: #FCBC06; }
+    .tab-btn:not(.active):hover { color: #fff; border-color: #2a2a2a; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Section buttons (Campanhas/Conjuntos/Anúncios) */
+    .sec-btn { padding: 6px 16px; border-radius: 6px; font-size: 12px; font-weight: 500; color: #6B6B6B; cursor: pointer; border: 1px solid #2a2a2a; transition: all .2s; }
+    .sec-btn.active { background: #FCBC06; color: #000; border-color: #FCBC06; }
+    .sec-btn:not(.active):hover { color: #fff; }
+    .sec-panel { display: none; }
+    .sec-panel.active { display: block; }
+
+    /* Tables */
+    th { user-select: none; white-space: nowrap; }
+    th[data-sort]:hover { color: #FCBC06; cursor: pointer; }
+    tr:hover td { background: rgba(252,188,6,0.04); }
+    td, th { border-bottom: 1px solid #1a1a1a; }
+
+    /* KPI value */
+    .kpi-val { font-size: clamp(1.2rem, 3vw, 1.75rem); font-weight: 700; line-height: 1.1; }
+    .kpi-val-sm { font-size: clamp(0.95rem, 2.5vw, 1.25rem); font-weight: 700; line-height: 1.1; }
+
+    /* Date inputs */
+    input[type="date"] { color-scheme: dark; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5) sepia(1) saturate(5) hue-rotate(10deg); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: #111; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+
+    @media (max-width: 640px) {
+      .hide-mobile { display: none !important; }
+      .chart-h { height: 200px !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <header style="background:#0d0d0d;border-bottom:1px solid #1a1a1a" class="sticky top-0 z-20 px-4 py-3">
+    <div class="max-w-7xl mx-auto">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+
+        <!-- Logo + title -->
+        <div class="flex items-center gap-3">
+          <div style="background:#FCBC06;border-radius:8px;padding:6px 10px;font-weight:700;font-size:14px;color:#000;letter-spacing:-0.5px">
+            gt.
+          </div>
+          <div>
+            <p class="font-semibold text-sm text-white leading-tight">Dashboard · Cevadores</p>
+            <p class="text-xs" style="color:#6B6B6B">Meta Ads · Kommo CRM</p>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="text-xs" style="color:#6B6B6B">De</label>
+          <input type="date" id="dateFrom"
+            class="rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+            style="background:#1a1a1a;border:1px solid #2a2a2a">
+          <label class="text-xs" style="color:#6B6B6B">Até</label>
+          <input type="date" id="dateTo"
+            class="rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+            style="background:#1a1a1a;border:1px solid #2a2a2a">
+          <button id="btnApply"
+            class="rounded-lg px-4 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
+            style="background:#FCBC06">Filtrar</button>
+          <button id="btnReload" title="Recarregar dados"
+            class="rounded-lg px-2.5 py-1.5 text-sm transition-colors hover:text-white"
+            style="background:#1a1a1a;border:1px solid #2a2a2a;color:#6B6B6B">↻</button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-2 mt-3">
+        <button class="tab-btn active" data-tab="overview">Visão Geral</button>
+        <button class="tab-btn" data-tab="tables">Tabelas</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-4 sm:px-6 sm:py-5">
+
+    <!-- Status -->
+    <div class="flex items-center gap-2 mb-5 text-xs" style="color:#6B6B6B">
+      <span id="statusDot" class="inline-block w-2 h-2 rounded-full flex-shrink-0" style="background:#FCBC06"></span>
+      <span id="statusText">Carregando dados da planilha...</span>
+    </div>
+
+    <!-- ── TAB 1: VISÃO GERAL ── -->
+    <div id="tab-overview" class="tab-panel active">
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Leads</p>
+          <p id="kpiLeads" class="kpi-val text-white">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">MQLs</p>
+          <p id="kpiMqls" class="kpi-val" style="color:#FCBC06">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Conversão</p>
+          <p id="kpiConv" class="kpi-val text-white">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">CPL</p>
+          <p id="kpiCpl" class="kpi-val-sm text-white">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">CPMQL</p>
+          <p id="kpiCpmql" class="kpi-val-sm text-white">—</p>
+        </div>
+        <div class="card p-4">
+          <p class="text-xs font-medium uppercase tracking-wider mb-2" style="color:#6B6B6B">Investimento</p>
+          <p id="kpiInvest" class="kpi-val-sm" style="color:#FCBC06">—</p>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        <!-- Daily chart (2/3 width) -->
+        <div class="card p-4 lg:col-span-2">
+          <p class="text-xs font-semibold uppercase tracking-wider mb-4" style="color:#6B6B6B">Leads e MQLs por Dia</p>
+          <div class="chart-h" style="height:260px;position:relative">
+            <canvas id="chartDaily"></canvas>
+          </div>
+        </div>
+
+        <!-- Segment donut (1/3 width) -->
+        <div class="card p-4">
+          <p class="text-xs font-semibold uppercase tracking-wider mb-4" style="color:#6B6B6B">Tamanho de Cliente</p>
+          <div class="chart-h" style="height:260px;position:relative">
+            <canvas id="chartSegments"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── TAB 2: TABELAS ── -->
+    <div id="tab-tables" class="tab-panel">
+
+      <!-- Sub-section toggle -->
+      <div class="flex gap-2 mb-5 flex-wrap">
+        <button class="sec-btn active" data-sec="campanhas">Campanhas</button>
+        <button class="sec-btn" data-sec="conjuntos">Conjuntos</button>
+        <button class="sec-btn" data-sec="anuncios">Anúncios</button>
+      </div>
+
+      <!-- Campanhas table -->
+      <div id="sec-campanhas" class="sec-panel active card overflow-hidden">
+        <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Campanhas</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs" id="tableCampanhas">
+            <thead style="background:#0d0d0d">
+              <tr id="headCampanhas"></tr>
+            </thead>
+            <tbody id="bodyCampanhas">
+              <tr><td colspan="12" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Conjuntos table -->
+      <div id="sec-conjuntos" class="sec-panel card overflow-hidden">
+        <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Conjuntos de Anúncios</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs" id="tableConjuntos">
+            <thead style="background:#0d0d0d">
+              <tr id="headConjuntos"></tr>
+            </thead>
+            <tbody id="bodyConjuntos">
+              <tr><td colspan="12" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Anúncios table -->
+      <div id="sec-anuncios" class="sec-panel card overflow-hidden">
+        <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Anúncios</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs" id="tableAnuncios">
+            <thead style="background:#0d0d0d">
+              <tr id="headAnuncios"></tr>
+            </thead>
+            <tbody id="bodyAnuncios">
+              <tr><td colspan="12" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="text-center text-xs mt-6 pb-4" style="color:#2a2a2a">
+      Dados atualizados em <span id="lastUpdate">—</span> · gt.mídia<span style="color:#FCBC06">.</span>
+    </p>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,475 @@
+const SHEET_ID = '1vyOL8IAYlsTnqvLL8_B6LeG5P2BOPyATnjTIEZxgCK0';
+const KOMMO_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Dados%20Kommo%20Tratado`;
+const FB_URL    = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Custos_Facebook`;
+
+// GT Mídia brand colors
+const C = {
+  yellow:  '#FCBC06',
+  white:   '#ffffff',
+  gray:    '#6B6B6B',
+  dark:    '#2a2a2a',
+  bg:      '#0a0a0a',
+  seg:     ['#3a3a3a', '#FCBC06', '#e0a800', '#b8890a', '#888888'],
+};
+
+const MQL_SEGMENTS = new Set([
+  'de_1.500_a_3.000_clientes',
+  'de_3.000_a_6.000_clientes',
+  'de_6.000_a_10.000_clientes',
+  'mais_de_10.000_clientes',
+]);
+
+const SEGMENTS = [
+  { key: 'de_100_a_1.500_clientes',    label: '100–1.500'    },
+  { key: 'de_1.500_a_3.000_clientes',  label: '1.500–3.000'  },
+  { key: 'de_3.000_a_6.000_clientes',  label: '3.000–6.000'  },
+  { key: 'de_6.000_a_10.000_clientes', label: '6.000–10.000' },
+  { key: 'mais_de_10.000_clientes',    label: '10.000+'      },
+];
+
+let allLeads = [], allCosts = [];
+let charts   = {};
+let tableSort = { campanhas: { col: 'leads', asc: false }, conjuntos: { col: 'leads', asc: false }, anuncios: { col: 'leads', asc: false } };
+
+// ── CSV parser ──────────────────────────────────────────────────
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cell = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      if (inQ && text[i + 1] === '"') { cell += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === ',' && !inQ) {
+      row.push(cell.trim()); cell = '';
+    } else if ((c === '\n' || c === '\r') && !inQ) {
+      row.push(cell.trim()); cell = '';
+      if (row.some(v => v !== '')) rows.push(row);
+      row = [];
+      if (c === '\r' && text[i + 1] === '\n') i++;
+    } else {
+      cell += c;
+    }
+  }
+  if (row.length) { row.push(cell.trim()); if (row.some(v => v !== '')) rows.push(row); }
+  return rows;
+}
+
+// ── Value parsers ───────────────────────────────────────────────
+
+function parseDate(val) {
+  if (!val) return null;
+  val = val.trim();
+  if (/^\d{4,5}$/.test(val)) {
+    // Excel serial → UTC date → re-parse as local to avoid UTC offset issues
+    const utc = new Date((parseInt(val) - 25569) * 86400 * 1000);
+    return new Date(utc.toISOString().slice(0, 10) + 'T00:00:00');
+  }
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) {
+    const [d, m, y] = val.split('/');
+    return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T00:00:00`);
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return new Date(val + 'T00:00:00');
+  return null;
+}
+
+function parseAmount(val) {
+  if (!val) return 0;
+  val = val.trim().replace(/\s/g, '');
+  if (val.includes(',') && val.includes('.')) return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+  if (val.includes(',')) return parseFloat(val.replace(',', '.')) || 0;
+  return parseFloat(val) || 0;
+}
+
+// ── Row parsers ─────────────────────────────────────────────────
+// Dados Kommo Tratado: 0:Id 1:Nome 2:Data 3:Status 4:Valor 5:Base
+//                     6:Camp 7:Conj 8:Anun 9:CampTrat 10:ConjTrat 11:AnunTrat
+
+function parseLead(row) {
+  if (!row || row.length < 3) return null;
+  const date = parseDate(row[2]);
+  if (!date || isNaN(date)) return null;
+  return {
+    date,
+    baseClientes:     row[5]  || '',
+    campanhaTratada:  row[9]  || '',
+    conjuntoTratado:  row[10] || '',
+    anuncioTratado:   row[11] || '',
+  };
+}
+
+// Custos_Facebook: 0:Day 1:AmtSpent 2:CampName 3:AdSet 4:AdName
+//                 5:Campanha 6:Conjunto 7:Anuncio 8:DataFmt
+
+function parseCost(row) {
+  if (!row || row.length < 7) return null;
+  const date = parseDate(row[0]);
+  if (!date || isNaN(date)) return null;
+  return {
+    date,
+    amountSpent: parseAmount(row[1]),
+    campanha:    row[5] || '',
+    conjunto:    row[6] || '',
+    anuncio:     row[7] || '',
+  };
+}
+
+// ── Helpers ─────────────────────────────────────────────────────
+
+const isMql = l => MQL_SEGMENTS.has(l.baseClientes);
+
+function fmtBRL(v) {
+  if (v == null || !isFinite(v)) return '—';
+  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtPct(n, d) {
+  if (!d) return '—';
+  return (n / d * 100).toFixed(1) + '%';
+}
+function labelOf(s, max) {
+  if (!s) return '—';
+  const c = s.replace(/\[[^\]]*\]\s*/g, '').trim();
+  const t = c || s;
+  return t.length > max ? t.slice(0, max - 1) + '…' : t;
+}
+
+// ── Filtering ───────────────────────────────────────────────────
+
+function getFilter() {
+  const fv = document.getElementById('dateFrom').value;
+  const tv = document.getElementById('dateTo').value;
+  return {
+    from: fv ? new Date(fv + 'T00:00:00') : null,
+    to:   tv ? new Date(tv + 'T23:59:59') : null,
+  };
+}
+const inRange = (x, { from, to }) =>
+  !(from && x.date < from) && !(to && x.date > to);
+
+// ── Aggregation ─────────────────────────────────────────────────
+
+function aggregateGroup(leads, costs, leadKey, costKey) {
+  const map = {};
+  for (const l of leads) {
+    const k = leadKey(l);
+    if (!k) continue;
+    if (!map[k]) {
+      const segs = {};
+      SEGMENTS.forEach(s => segs[s.key] = 0);
+      map[k] = { name: k, leads: 0, mqls: 0, investimento: 0, segs };
+    }
+    map[k].leads++;
+    if (isMql(l)) map[k].mqls++;
+    if (l.baseClientes && map[k].segs[l.baseClientes] !== undefined) map[k].segs[l.baseClientes]++;
+  }
+  for (const c of costs) {
+    const k = costKey(c);
+    if (k && map[k]) map[k].investimento += c.amountSpent;
+  }
+  return Object.values(map).map(r => ({
+    ...r,
+    conv:   r.leads > 0 ? r.mqls / r.leads : 0,
+    cpl:    r.leads > 0 && r.investimento > 0 ? r.investimento / r.leads : null,
+    cpmql:  r.mqls  > 0 && r.investimento > 0 ? r.investimento / r.mqls  : null,
+  }));
+}
+
+function aggregateDaily(leads) {
+  const map = {};
+  for (const l of leads) {
+    const day = l.date.toISOString().slice(0, 10);
+    if (!map[day]) map[day] = { date: day, leads: 0, mqls: 0 };
+    map[day].leads++;
+    if (isMql(l)) map[day].mqls++;
+  }
+  return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function aggregateSegments(leads) {
+  const counts = Object.fromEntries(SEGMENTS.map(s => [s.key, 0]));
+  for (const l of leads) if (counts[l.baseClientes] !== undefined) counts[l.baseClientes]++;
+  return SEGMENTS.map(s => ({ ...s, count: counts[s.key] }));
+}
+
+// ── Chart defaults ──────────────────────────────────────────────
+
+Chart.defaults.color       = C.gray;
+Chart.defaults.borderColor = C.dark;
+Chart.defaults.font.family = "'DM Sans', system-ui, sans-serif";
+
+function mkChart(id, type, data, opts) {
+  const ctx = document.getElementById(id).getContext('2d');
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(ctx, { type, data, options: { responsive: true, maintainAspectRatio: false, ...opts } });
+}
+
+// ── Chart renderers ─────────────────────────────────────────────
+
+function renderDailyChart(series) {
+  const labels = series.map(d => {
+    const [y, m, day] = d.date.split('-');
+    return `${day}/${m}`;
+  });
+  mkChart('chartDaily', 'line', {
+    labels,
+    datasets: [
+      {
+        label: 'Leads',
+        data: series.map(d => d.leads),
+        borderColor: C.white,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 2,
+        pointRadius: series.length > 40 ? 0 : 3,
+        pointHoverRadius: 5,
+        fill: true,
+        tension: 0.3,
+      },
+      {
+        label: 'MQLs',
+        data: series.map(d => d.mqls),
+        borderColor: C.yellow,
+        backgroundColor: 'rgba(252,188,6,0.12)',
+        borderWidth: 2,
+        pointRadius: series.length > 40 ? 0 : 3,
+        pointHoverRadius: 5,
+        fill: true,
+        tension: 0.3,
+      },
+    ],
+  }, {
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: C.gray, boxWidth: 10, padding: 14, font: { size: 11 } } },
+      tooltip: { callbacks: { title: ctx => series[ctx[0].dataIndex].date } },
+    },
+    scales: {
+      x: { ticks: { color: C.gray, font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: '#1a1a1a' } },
+      y: { ticks: { color: C.gray, font: { size: 10 } }, grid: { color: '#1a1a1a' }, beginAtZero: true },
+    },
+  });
+}
+
+function renderSegmentChart(segs) {
+  mkChart('chartSegments', 'doughnut', {
+    labels: segs.map(s => s.label),
+    datasets: [{
+      data: segs.map(s => s.count),
+      backgroundColor: C.seg,
+      borderColor: '#111111',
+      borderWidth: 3,
+    }],
+  }, {
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { color: C.gray, padding: 10, boxWidth: 10, font: { size: 10 } },
+      },
+    },
+  });
+}
+
+// ── KPI cards ───────────────────────────────────────────────────
+
+function renderKpis(leads, costs) {
+  const total  = leads.length;
+  const mqls   = leads.filter(isMql).length;
+  const invest = costs.reduce((s, c) => s + c.amountSpent, 0);
+  const cpl    = total > 0 && invest > 0 ? invest / total : null;
+  const cpmql  = mqls  > 0 && invest > 0 ? invest / mqls  : null;
+
+  document.getElementById('kpiLeads').textContent  = total.toLocaleString('pt-BR');
+  document.getElementById('kpiMqls').textContent   = mqls.toLocaleString('pt-BR');
+  document.getElementById('kpiConv').textContent   = fmtPct(mqls, total);
+  document.getElementById('kpiCpl').textContent    = cpl   != null ? fmtBRL(cpl)   : '—';
+  document.getElementById('kpiCpmql').textContent  = cpmql != null ? fmtBRL(cpmql) : '—';
+  document.getElementById('kpiInvest').textContent = fmtBRL(invest);
+}
+
+// ── Full table renderer ─────────────────────────────────────────
+
+const TABLE_COLS = [
+  { id: 'name',        label: 'Nome',          align: 'left',  sortable: true },
+  { id: 'leads',       label: 'Leads',         align: 'right', sortable: true },
+  { id: 'seg0',        label: '100–1.500',     align: 'right', sortable: false, cls: 'hide-mobile' },
+  { id: 'seg1',        label: '1.500–3.000',   align: 'right', sortable: false, cls: 'hide-mobile' },
+  { id: 'seg2',        label: '3.000–6.000',   align: 'right', sortable: false, cls: 'hide-mobile' },
+  { id: 'seg3',        label: '6.000–10.000',  align: 'right', sortable: false, cls: 'hide-mobile' },
+  { id: 'seg4',        label: '10.000+',       align: 'right', sortable: false, cls: 'hide-mobile' },
+  { id: 'mqls',        label: 'MQL',           align: 'right', sortable: true },
+  { id: 'conv',        label: '% MQL',         align: 'right', sortable: true },
+  { id: 'investimento',label: 'Investimento',  align: 'right', sortable: true, cls: 'hide-mobile' },
+  { id: 'cpl',         label: 'CPL',           align: 'right', sortable: true },
+  { id: 'cpmql',       label: 'CPMQL',         align: 'right', sortable: true, cls: 'hide-mobile' },
+];
+
+const SORT_KEYS = {
+  name:         r => (r.name || '').toLowerCase(),
+  leads:        r => r.leads,
+  mqls:         r => r.mqls,
+  conv:         r => r.conv,
+  investimento: r => r.investimento,
+  cpl:          r => r.cpl  ?? Infinity,
+  cpmql:        r => r.cpmql ?? Infinity,
+};
+
+function renderHead(headId, tableId) {
+  const state = tableSort[tableId];
+  document.getElementById(headId).innerHTML = TABLE_COLS.map(col => `
+    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}"
+        style="color:#6B6B6B"
+        ${col.sortable ? `data-sort="${col.id}" data-table="${tableId}"` : ''}>
+      ${col.label}${col.sortable && state.col === col.id ? (state.asc ? ' ↑' : ' ↓') : col.sortable ? ' ↕' : ''}
+    </th>
+  `).join('');
+
+  // Attach sort listeners
+  document.getElementById(headId).querySelectorAll('[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort, tbl = th.dataset.table;
+      if (tableSort[tbl].col === col) tableSort[tbl].asc = !tableSort[tbl].asc;
+      else { tableSort[tbl].col = col; tableSort[tbl].asc = false; }
+      const filter = getFilter();
+      const leads  = allLeads.filter(l => inRange(l, filter));
+      const costs  = allCosts.filter(c => inRange(c, filter));
+      const data   = aggregateGroup(leads, costs, ...getKeyFns(tbl));
+      renderHead(headId, tbl);
+      renderBody(`body${capitalize(tbl)}`, data, tbl);
+    });
+  });
+}
+
+function getKeyFns(tableId) {
+  if (tableId === 'campanhas') return [l => l.campanhaTratada,  c => c.campanha];
+  if (tableId === 'conjuntos') return [l => l.conjuntoTratado,  c => c.conjunto];
+  return                              [l => l.anuncioTratado,   c => c.anuncio];
+}
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function renderBody(bodyId, data, tableId) {
+  const state = tableSort[tableId];
+  const fn    = SORT_KEYS[state.col] || (r => r[state.col]);
+  const dir   = state.asc ? 1 : -1;
+  const sorted = [...data].sort((a, b) => {
+    const av = fn(a), bv = fn(b);
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+
+  const tbody = document.getElementById(bodyId);
+  if (!sorted.length) {
+    tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-10 text-center" style="color:#3a3a3a">Sem dados no período.</td></tr>`;
+    return;
+  }
+
+  const mqlColor = C.yellow;
+
+  tbody.innerHTML = sorted.map((r, i) => `
+    <tr style="background:${i % 2 ? 'transparent' : 'rgba(252,188,6,0.02)'}">
+      <td class="px-3 py-2.5" style="color:#e0e0e0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${labelOf(r.name, 38)}</td>
+      <td class="px-3 py-2.5 text-right font-mono text-white">${r.leads}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${r.segs[SEGMENTS[0].key]}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${r.segs[SEGMENTS[1].key]}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${r.segs[SEGMENTS[2].key]}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${r.segs[SEGMENTS[3].key]}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${r.segs[SEGMENTS[4].key]}</td>
+      <td class="px-3 py-2.5 text-right font-mono font-semibold" style="color:${mqlColor}">${r.mqls}</td>
+      <td class="px-3 py-2.5 text-right font-mono" style="color:#fff">${fmtPct(r.mqls, r.leads)}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${r.investimento > 0 ? fmtBRL(r.investimento) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono text-white">${r.cpl != null ? fmtBRL(r.cpl) : '—'}</td>
+      <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${r.cpmql != null ? '#9a9a9a' : '#3a3a3a'}">${r.cpmql != null ? fmtBRL(r.cpmql) : 'SEM MQL'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderAllTables(leads, costs) {
+  const tables = ['campanhas', 'conjuntos', 'anuncios'];
+  tables.forEach(t => {
+    const headId = `head${capitalize(t)}`;
+    const bodyId = `body${capitalize(t)}`;
+    const data = aggregateGroup(leads, costs, ...getKeyFns(t));
+    renderHead(headId, t);
+    renderBody(bodyId, data, t);
+  });
+}
+
+// ── Status ──────────────────────────────────────────────────────
+
+function setStatus(text, state) {
+  document.getElementById('statusText').textContent = text;
+  const dot = document.getElementById('statusDot');
+  dot.style.background = state === 'ok' ? '#4ade80' : state === 'err' ? '#f87171' : C.yellow;
+}
+
+function setDefaultDates() {
+  const all = [...allLeads, ...allCosts].map(x => x.date.getTime()).filter(Boolean);
+  if (!all.length) return;
+  const min = new Date(Math.min(...all));
+  const max = new Date(Math.max(...all));
+  document.getElementById('dateFrom').value = min.toISOString().slice(0, 10);
+  document.getElementById('dateTo').value   = max.toISOString().slice(0, 10);
+}
+
+// ── Main render ─────────────────────────────────────────────────
+
+function render() {
+  const filter = getFilter();
+  const leads  = allLeads.filter(l => inRange(l, filter));
+  const costs  = allCosts.filter(c => inRange(c, filter));
+
+  renderKpis(leads, costs);
+  renderDailyChart(aggregateDaily(leads));
+  renderSegmentChart(aggregateSegments(leads));
+  renderAllTables(leads, costs);
+}
+
+// ── Data load ───────────────────────────────────────────────────
+
+async function loadData() {
+  setStatus('Carregando dados...', 'loading');
+  try {
+    const [kr, fr] = await Promise.all([fetch(KOMMO_URL), fetch(FB_URL)]);
+    if (!kr.ok || !fr.ok) throw new Error('HTTP error');
+    const [kt, ft] = await Promise.all([kr.text(), fr.text()]);
+
+    allLeads = parseCSV(kt).slice(1).map(parseLead).filter(Boolean);
+    allCosts = parseCSV(ft).slice(1).map(parseCost).filter(Boolean);
+
+    if (!document.getElementById('dateFrom').value) setDefaultDates();
+
+    const ts = new Date().toLocaleString('pt-BR');
+    document.getElementById('lastUpdate').textContent = ts;
+    setStatus(`${allLeads.length} leads · ${allCosts.length} registros de custo · ${new Date().toLocaleTimeString('pt-BR')}`, 'ok');
+    render();
+  } catch (e) {
+    setStatus('Erro ao carregar. Verifique se a planilha está pública.', 'err');
+    console.error(e);
+  }
+}
+
+// ── Tab navigation ──────────────────────────────────────────────
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
+document.querySelectorAll('.sec-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sec-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.sec-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`sec-${btn.dataset.sec}`).classList.add('active');
+  });
+});
+
+// ── Filter & reload ─────────────────────────────────────────────
+
+document.getElementById('btnApply').addEventListener('click', render);
+document.getElementById('btnReload').addEventListener('click', loadData);
+
+loadData();
