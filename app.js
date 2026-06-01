@@ -191,7 +191,21 @@ function aggregateDaily(leads, from, to) {
     if (isMql(l)) map[day].mqls++;
   }
 
-  // Preenche todos os dias do período com 0 (para o gráfico não pular dias)
+  const periodDays = (from && to)
+    ? Math.round((to.getTime() - from.getTime()) / 86400000) + 1
+    : 999;
+  const isOneDay = periodDays === 1;
+
+  if (isOneDay) {
+    // Período de 1 dia: mostra só esse dia
+    if (from) {
+      const key = from.toISOString().slice(0, 10);
+      if (!map[key]) map[key] = { date: key, leads: 0, mqls: 0 };
+    }
+    return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  // Preenche todos os dias do período com 0
   if (from && to) {
     const d = new Date(from);
     const end = new Date(to);
@@ -204,7 +218,7 @@ function aggregateDaily(leads, from, to) {
 
   const series = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
 
-  // Garante mínimo de 7 datas: estende para trás se necessário
+  // Expande para mínimo 7 apenas se período > 1 dia e série < 7
   if (series.length < 7) {
     const firstDate = series.length > 0
       ? new Date(series[0].date)
@@ -666,14 +680,22 @@ function applyPeriod(period, skipRender) {
   activePeriod = period;
   const now = new Date();
 
-  if (period === 'yesterday') {
+  if (period === 'today') {
+    setDates(now, now);
+  } else if (period === 'yesterday') {
     const d = new Date(now); d.setDate(d.getDate() - 1);
     setDates(d, d);
   } else if (period === 'week') {
-    const day = now.getDay(); // 0=Sun,1=Mon...
+    const day = now.getDay();
     const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
     const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
     setDates(mon, sun);
+  } else if (period === 'lastweek') {
+    const day = now.getDay();
+    const thisMon = new Date(now); thisMon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    const lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate() - 7);
+    const lastSun = new Date(lastMon); lastSun.setDate(lastMon.getDate() + 6);
+    setDates(lastMon, lastSun);
   } else if (period === 'month') {
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
     const last  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -703,7 +725,7 @@ function render() {
   const costs  = allCosts.filter(c => inRange(c, filter));
   // RR: filtrado pela DATA DA REUNIÃO (não pela criação do lead)
   const reunReais = allLeads.filter(function(l) {
-    return l.campanhaTratada && l.dataReuniao && inRange({ date: l.dataReuniao }, filter);
+    return l.campanhaTratada && l.dataReuniao && l.auditoria && inRange({ date: l.dataReuniao }, filter);
   });
 
   renderKpis(leads, costs, reunReais);
