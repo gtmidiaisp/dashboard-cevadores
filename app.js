@@ -724,8 +724,11 @@ function render() {
   const leads  = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
   const costs  = allCosts.filter(c => inRange(c, filter));
   // RR: filtrado pela DATA DA REUNIÃO (não pela criação do lead)
+  const agora = new Date();
   const reunReais = allLeads.filter(function(l) {
-    return l.campanhaTratada && l.dataReuniao && l.auditoria && inRange({ date: l.dataReuniao }, filter);
+    return l.campanhaTratada && l.dataReuniao && l.auditoria
+      && l.dataReuniao <= agora
+      && inRange({ date: l.dataReuniao }, filter);
   });
 
   renderKpis(leads, costs, reunReais);
