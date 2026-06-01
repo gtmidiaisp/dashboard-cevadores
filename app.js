@@ -12,6 +12,9 @@ const C = {
   seg:     ['#3a3a3a', '#FCBC06', '#e0a800', '#b8890a', '#888888'],
 };
 
+// Valores de auditoria que indicam reunião realizada
+const AUDITORIA_RR = new Set(['Qualificado', 'Desqualificado']);
+
 const MQL_SEGMENTS = new Set([
   'de_1.500_a_3.000_clientes',
   'de_3.000_a_6.000_clientes',
@@ -578,7 +581,8 @@ function renderHeadCom(headId, tableId) {
       const filter    = getFilter();
       const leads     = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
       const costs     = allCosts.filter(c => inRange(c, filter));
-      const reunReais = allLeads.filter(l => l.campanhaTratada && l.dataReuniao && inRange({ date: l.dataReuniao }, filter));
+      const _agora = new Date();
+      const reunReais = allLeads.filter(l => l.campanhaTratada && l.dataReuniao && AUDITORIA_RR.has(l.auditoria) && l.dataReuniao <= _agora && inRange({ date: l.dataReuniao }, filter));
       const kfns      = getKeyFns(tbl.replace('C', ''));
       renderHeadCom(headId, tbl);
       renderBodyCom(`body${capitalize(tbl)}`, aggregateGroupComercial(leads, costs, reunReais, ...kfns), tbl);
@@ -726,7 +730,7 @@ function render() {
   // RR: filtrado pela DATA DA REUNIÃO (não pela criação do lead)
   const agora = new Date();
   const reunReais = allLeads.filter(function(l) {
-    return l.campanhaTratada && l.dataReuniao && l.auditoria
+    return l.campanhaTratada && l.dataReuniao && AUDITORIA_RR.has(l.auditoria)
       && l.dataReuniao <= agora
       && inRange({ date: l.dataReuniao }, filter);
   });
