@@ -588,11 +588,13 @@ function renderHeadCom(headId, tableId) {
       const filter    = getFilter();
       const leads     = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
       const costs     = allCosts.filter(c => inRange(c, filter));
-      const _agora = new Date();
+      const _agora    = new Date();
       const reunReais = allLeads.filter(l => l.campanhaTratada && l.dataReuniao && AUDITORIA_RR.has(l.auditoria) && l.dataReuniao <= _agora && inRange({ date: l.dataReuniao }, filter));
-      const kfns      = getKeyFns(tbl.replace('C', ''));
+      const base      = tbl.replace('C', ''); // 'campanhasC' → 'campanhas'
+      const kfns      = getKeyFns(base);
+      const bodyId    = `bodyCom${capitalize(base)}`;
       renderHeadCom(headId, tbl);
-      renderBodyCom(`body${capitalize(tbl)}`, aggregateGroupComercial(leads, costs, reunReais, ...kfns), tbl);
+      renderBodyCom(bodyId, aggregateGroupComercial(leads, costs, reunReais, ...kfns), tbl);
     });
   });
 }
