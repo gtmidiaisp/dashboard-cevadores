@@ -385,22 +385,25 @@ const SORT_KEYS = {
   cpmql:        r => r.cpmql ?? Infinity,
 };
 
+function sortArrows(state, colId) {
+  const aY = state.col === colId && state.asc  ? C.yellow : '#333';
+  const dY = state.col === colId && !state.asc ? C.yellow : '#333';
+  return `<span style="font-size:9px;cursor:pointer;color:${aY}" data-sort="${colId}" data-dir="asc">▲</span><span style="font-size:9px;cursor:pointer;color:${dY}" data-sort="${colId}" data-dir="desc">▼</span>`;
+}
+
 function renderHead(headId, tableId) {
   const state = tableSort[tableId];
   document.getElementById(headId).innerHTML = TABLE_COLS.map(col => `
-    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}"
-        style="color:#6B6B6B"
-        ${col.sortable ? `data-sort="${col.id}" data-table="${tableId}"` : ''}>
-      ${col.label}${col.sortable && state.col === col.id ? (state.asc ? ' ↑' : ' ↓') : col.sortable ? ' ↕' : ''}
+    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}" style="color:#6B6B6B;white-space:nowrap">
+      ${col.label}${col.sortable ? ' ' + sortArrows(state, col.id) : ''}
     </th>
   `).join('');
 
-  // Attach sort listeners
-  document.getElementById(headId).querySelectorAll('[data-sort]').forEach(th => {
-    th.addEventListener('click', () => {
-      const col = th.dataset.sort, tbl = th.dataset.table;
-      if (tableSort[tbl].col === col) tableSort[tbl].asc = !tableSort[tbl].asc;
-      else { tableSort[tbl].col = col; tableSort[tbl].asc = false; }
+  document.getElementById(headId).querySelectorAll('[data-sort]').forEach(el => {
+    el.addEventListener('click', () => {
+      const col = el.dataset.sort, tbl = tableId, dir = el.dataset.dir;
+      tableSort[tbl].col = col;
+      tableSort[tbl].asc = dir === 'asc';
       const filter = getFilter();
       const leads  = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
       const costs  = allCosts.filter(c => inRange(c, filter));
@@ -563,21 +566,25 @@ let tableSortCom = {
   anunciosC:   { col: 'leads', asc: false },
 };
 
+function sortArrowsCom(state, colId) {
+  const aY = state.col === colId && state.asc  ? C.yellow : '#333';
+  const dY = state.col === colId && !state.asc ? C.yellow : '#333';
+  return `<span style="font-size:9px;cursor:pointer;color:${aY}" data-sort-com="${colId}" data-dir-com="asc">▲</span><span style="font-size:9px;cursor:pointer;color:${dY}" data-sort-com="${colId}" data-dir-com="desc">▼</span>`;
+}
+
 function renderHeadCom(headId, tableId) {
   const state = tableSortCom[tableId];
   document.getElementById(headId).innerHTML = TABLE_COLS_COM.map(col => `
-    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}"
-        style="color:#6B6B6B"
-        ${col.sortable ? `data-sort-com="${col.id}" data-table-com="${tableId}"` : ''}>
-      ${col.label}${col.sortable && state.col === col.id ? (state.asc ? ' ↑' : ' ↓') : col.sortable ? ' ↕' : ''}
+    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}" style="color:#6B6B6B;white-space:nowrap">
+      ${col.label}${col.sortable ? ' ' + sortArrowsCom(state, col.id) : ''}
     </th>
   `).join('');
 
-  document.getElementById(headId).querySelectorAll('[data-sort-com]').forEach(th => {
-    th.addEventListener('click', () => {
-      const col = th.dataset.sortCom, tbl = th.dataset.tableCom;
-      if (tableSortCom[tbl].col === col) tableSortCom[tbl].asc = !tableSortCom[tbl].asc;
-      else { tableSortCom[tbl].col = col; tableSortCom[tbl].asc = false; }
+  document.getElementById(headId).querySelectorAll('[data-sort-com]').forEach(el => {
+    el.addEventListener('click', () => {
+      const col = el.dataset.sortCom, tbl = tableId, dir = el.dataset.dirCom;
+      tableSortCom[tbl].col = col;
+      tableSortCom[tbl].asc = dir === 'asc';
       const filter    = getFilter();
       const leads     = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
       const costs     = allCosts.filter(c => inRange(c, filter));
