@@ -102,7 +102,7 @@ function parseLead(row) {
     campanhaTratada: row[9]  || '',
     conjuntoTratado: row[10] || '',
     anuncioTratado:  row[11] || '',
-    dataAgend:       row[12] || '',
+    dataAgend:       parseDate(row[12]),    // filtrado por data do agendamento
     dataReuniao:     parseDate(row[13]),   // filtrado por data da reunião
     auditoria:       row[14] || '',
     dataEntrada:     row[15] || '',
@@ -321,14 +321,14 @@ function renderSegmentChart(segs) {
 
 // ── KPI cards ───────────────────────────────────────────────────
 
-function renderKpis(leads, costs, reunReais) {
+function renderKpis(leads, costs, reunAgendArr, reunReais) {
   const total     = leads.length;
   const mqls      = leads.filter(isMql).length;
   const invest    = costs.reduce((s, c) => s + c.amountSpent, 0);
   const cpl       = total > 0 && invest > 0 ? invest / total : null;
   const cpmql     = mqls  > 0 && invest > 0 ? invest / mqls  : null;
 
-  const reunAgend   = leads.filter(function(l) { return l.dataAgend; }).length;
+  const reunAgend   = reunAgendArr.length;
   const reunReal    = reunReais.length;
   const vendas      = leads.filter(function(l) { return l.dataEntrada; }).length;
   const receita     = leads.filter(function(l) { return l.dataEntrada; }).reduce(function(s, l) { return s + (l.valor || 0); }, 0);
@@ -525,7 +525,7 @@ const SORT_KEYS_COM = {
   cpv:          r => r.cpv    ?? Infinity,
 };
 
-function aggregateGroupComercial(leads, costs, reunReais, leadKey, costKey) {
+function aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, leadKey, costKey) {
   const map = {};
 
   for (const l of leads) {
@@ -534,8 +534,13 @@ function aggregateGroupComercial(leads, costs, reunReais, leadKey, costKey) {
     if (!map[k]) map[k] = { name: k, leads: 0, mqls: 0, investimento: 0, ra: 0, rr: 0, vendas: 0 };
     map[k].leads++;
     if (isMql(l))       map[k].mqls++;
-    if (l.dataAgend)    map[k].ra++;
     if (l.dataEntrada)  map[k].vendas++;
+  }
+
+  // RA: filtrado pela data do agendamento
+  for (const l of reunAgendArr) {
+    const k = leadKey(l);
+    if (k && map[k]) map[k].ra++;
   }
 
   // RR: filtrado pela data da reunião, agrupado pela mesma chave
@@ -594,7 +599,8 @@ function renderHeadCom(headId, tableId) {
       const kfns      = getKeyFns(base);
       const bodyId    = `bodyCom${capitalize(base)}`;
       renderHeadCom(headId, tbl);
-      renderBodyCom(bodyId, aggregateGroupComercial(leads, costs, reunReais, ...kfns), tbl);
+      const _agendArr = allLeads.filter(function(l) { return l.campanhaTratada && l.dataAgend && inRange({ date: l.dataAgend }, filter); });
+      renderBodyCom(bodyId, aggregateGroupComercial(leads, costs, _agendArr, reunReais, ...kfns), tbl);
     });
   });
 }
@@ -660,13 +666,13 @@ function renderBodyCom(bodyId, data, tableId) {
   `;
 }
 
-function renderAllTablesComercial(leads, costs, reunReais) {
+function renderAllTablesComercial(leads, costs, reunAgendArr, reunReais) {
   const tables = ['campanhas', 'conjuntos', 'anuncios'];
   tables.forEach(t => {
     const tCom  = t + 'C';
     const headId = `headCom${capitalize(t)}`;
     const bodyId = `bodyCom${capitalize(t)}`;
-    const data   = aggregateGroupComercial(leads, costs, reunReais, ...getKeyFns(t));
+    const data   = aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, ...getKeyFns(t));
     renderHeadCom(headId, tCom);
     renderBodyCom(bodyId, data, tCom);
   });
@@ -738,17 +744,22 @@ function render() {
   const costs  = allCosts.filter(c => inRange(c, filter));
   // RR: filtrado pela DATA DA REUNIÃO (não pela criação do lead)
   const agora = new Date();
+  // RA: filtrado pela DATA DO AGENDAMENTO (não pela criação do lead)
+  const reunAgendArr = allLeads.filter(function(l) {
+    return l.campanhaTratada && l.dataAgend && inRange({ date: l.dataAgend }, filter);
+  });
+  // RR: filtrado pela DATA DA REUNIÃO + auditoria preenchida + já passou
   const reunReais = allLeads.filter(function(l) {
     return l.campanhaTratada && l.dataReuniao && AUDITORIA_RR.has(l.auditoria)
       && l.dataReuniao <= agora
       && inRange({ date: l.dataReuniao }, filter);
   });
 
-  renderKpis(leads, costs, reunReais);
+  renderKpis(leads, costs, reunAgendArr, reunReais);
   renderDailyChart(aggregateDaily(leads, filter.from, filter.to));
   renderSegmentChart(aggregateSegments(leads));
   renderAllTables(leads, costs);
-  renderAllTablesComercial(leads, costs, reunReais);
+  renderAllTablesComercial(leads, costs, reunAgendArr, reunReais);
 }
 
 // ── Data load ───────────────────────────────────────────────────
