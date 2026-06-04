@@ -146,13 +146,10 @@ function labelOf(s, max) {
 
 // ── Filtering ───────────────────────────────────────────────────
 
+let filterFrom = null, filterTo = null;
+
 function getFilter() {
-  const fv = document.getElementById('dateFrom').value;
-  const tv = document.getElementById('dateTo').value;
-  return {
-    from: fv ? new Date(fv + 'T00:00:00') : null,
-    to:   tv ? new Date(tv + 'T23:59:59') : null,
-  };
+  return { from: filterFrom, to: filterTo };
 }
 const inRange = (x, { from, to }) =>
   !(from && x.date < from) && !(to && x.date > to);
@@ -462,8 +459,12 @@ function renderBody(bodyId, data, tableId) {
       <td class="px-3 py-2.5 text-right font-mono text-white">${r.cpl != null ? fmtBRL(r.cpl) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${r.cpmql != null ? '#9a9a9a' : '#3a3a3a'}">${r.cpmql != null ? fmtBRL(r.cpmql) : 'SEM MQL'}</td>
     </tr>
-  `).join('') + `
-    <tr style="background:#1a1a1a;border-top:2px solid #FCBC06">
+  `).join('');
+
+  const footId = bodyId.replace('body', 'foot');
+  const tfoot  = document.getElementById(footId);
+  if (tfoot) tfoot.innerHTML = `
+    <tr>
       <td class="px-3 py-2.5 text-xs font-bold" style="color:#FCBC06">TOTAL</td>
       <td class="px-3 py-2.5 text-right font-mono font-bold text-white">${tLeads}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${tSegs[0]}</td>
@@ -647,8 +648,12 @@ function renderBodyCom(bodyId, data, tableId) {
       <td class="px-3 py-2.5 text-right font-mono font-semibold" style="color:${Y}">${r.vendas}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${fmtN(r.cpv)}</td>
     </tr>
-  `).join('') + `
-    <tr style="background:#1a1a1a;border-top:2px solid #FCBC06">
+  `).join('');
+
+  const footId = bodyId.replace('body', 'foot');
+  const tfoot  = document.getElementById(footId);
+  if (tfoot) tfoot.innerHTML = `
+    <tr>
       <td class="px-3 py-2.5 text-xs font-bold" style="color:#FCBC06">TOTAL</td>
       <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${W}">${tL}</td>
       <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${Y}">${tM}</td>
@@ -686,12 +691,21 @@ function setStatus(text, state) {
   dot.style.background = state === 'ok' ? '#4ade80' : state === 'err' ? '#f87171' : C.yellow;
 }
 
-function toInputDate(d) { return d.toISOString().slice(0, 10); }
-
 function setDates(from, to) {
-  document.getElementById('dateFrom').value = toInputDate(from);
-  document.getElementById('dateTo').value   = toInputDate(to);
+  filterFrom = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0, 0, 0);
+  filterTo   = new Date(to.getFullYear(),   to.getMonth(),   to.getDate(),  23, 59, 59);
 }
+
+const PERIOD_LABELS = {
+  today:     'Hoje',
+  yesterday: 'Ontem',
+  week:      'Esta semana',
+  lastweek:  'Última semana',
+  month:     'Este mês',
+  lastmonth: 'Mês passado',
+  year:      'Este ano',
+  custom:    'Personalizado',
+};
 
 let activePeriod = 'month';
 
@@ -723,14 +737,23 @@ function applyPeriod(period, skipRender) {
     const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const last  = new Date(now.getFullYear(), now.getMonth(), 0);
     setDates(first, last);
+  } else if (period === 'year') {
+    const first = new Date(now.getFullYear(), 0, 1);
+    const last  = new Date(now.getFullYear(), 11, 31);
+    setDates(first, last);
   }
-  // 'custom' just shows the pickers, no auto-dates
 
-  const customEl = document.getElementById('customDates');
-  if (customEl) customEl.style.display = period === 'custom' ? 'flex' : 'none';
+  const labelEl = document.getElementById('periodLabel');
+  if (labelEl) labelEl.textContent = PERIOD_LABELS[period] || period;
 
-  document.querySelectorAll('[data-period]').forEach(b => {
-    b.classList.toggle('active', b.dataset.period === period);
+  const customRange = document.getElementById('customRange');
+  if (customRange) customRange.style.display = period === 'custom' ? 'block' : 'none';
+
+  const dropdown = document.getElementById('periodDropdown');
+  if (dropdown) dropdown.classList.add('hidden');
+
+  document.querySelectorAll('.period-option').forEach(b => {
+    b.classList.toggle('active-option', b.dataset.period === period);
   });
 
   if (!skipRender && period !== 'custom') render();
@@ -817,11 +840,40 @@ document.querySelectorAll('[data-sec-com]').forEach(btn => {
 
 // ── Filter & reload ─────────────────────────────────────────────
 
-document.getElementById('btnApply').addEventListener('click', render);
-document.getElementById('btnReload').addEventListener('click', loadData);
+// Period dropdown
+const _dropBtn  = document.getElementById('periodDropdownBtn');
+const _dropdown = document.getElementById('periodDropdown');
 
-document.querySelectorAll('[data-period]').forEach(btn => {
+_dropBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  _dropdown.classList.toggle('hidden');
+});
+
+document.addEventListener('click', e => {
+  if (!document.getElementById('periodDropdownContainer').contains(e.target)) {
+    _dropdown.classList.add('hidden');
+  }
+});
+
+document.querySelectorAll('.period-option').forEach(btn => {
   btn.addEventListener('click', () => applyPeriod(btn.dataset.period));
 });
+
+// Flatpickr range picker
+flatpickr('#dateRangePicker', {
+  mode: 'range',
+  locale: 'pt',
+  dateFormat: 'd/m/Y',
+  onChange(selectedDates) {
+    if (selectedDates.length === 2) {
+      const [s, e] = selectedDates;
+      filterFrom = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0, 0, 0);
+      filterTo   = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59);
+      render();
+    }
+  }
+});
+
+document.getElementById('btnReload').addEventListener('click', loadData);
 
 loadData();

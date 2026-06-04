@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <style>
     * { font-family: 'DM Sans', system-ui, sans-serif; }
     body { background: #0a0a0a; color: #fff; }
@@ -45,9 +46,31 @@
     .period-btn.active { background: #FCBC06; color: #000; border-color: #FCBC06; }
     .period-btn:not(.active):hover { color: #fff; border-color: #444; }
 
-    /* Date inputs */
-    input[type="date"] { color-scheme: dark; }
-    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5) sepia(1) saturate(5) hue-rotate(10deg); }
+    /* Period dropdown options */
+    .period-option { display:block; width:100%; text-align:left; padding:7px 16px; font-size:12px; font-weight:500; color:#6B6B6B; background:transparent; border:none; cursor:pointer; transition:background .15s,color .15s; }
+    .period-option:hover { background:rgba(252,188,6,.1); color:#FCBC06; }
+    .period-option.active-option { color:#FCBC06; }
+
+    /* Flatpickr dark theme */
+    .flatpickr-calendar{background:#1a1a1a!important;border:1px solid #2a2a2a!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,.7)!important}
+    .flatpickr-months,.flatpickr-weekdays,.flatpickr-innerContainer,.flatpickr-rContainer{background:#1a1a1a!important}
+    .flatpickr-months .flatpickr-month{background:transparent!important;color:#fff!important}
+    .flatpickr-months .flatpickr-prev-month,.flatpickr-months .flatpickr-next-month{color:#6B6B6B!important;fill:#6B6B6B!important}
+    .flatpickr-months .flatpickr-prev-month:hover,.flatpickr-months .flatpickr-next-month:hover{color:#FCBC06!important;fill:#FCBC06!important;background:rgba(252,188,6,.1)!important}
+    .flatpickr-current-month input.cur-year{color:#fff!important}
+    .flatpickr-current-month .flatpickr-monthDropdown-months{background:#1a1a1a!important;color:#fff!important}
+    span.flatpickr-weekday{color:#6B6B6B!important;background:transparent!important}
+    .flatpickr-day{color:#fff!important;border-radius:6px!important}
+    .flatpickr-day:hover,.flatpickr-day:focus{background:rgba(252,188,6,.15)!important;border-color:transparent!important;color:#fff!important}
+    .flatpickr-day.selected,.flatpickr-day.startRange,.flatpickr-day.endRange{background:#FCBC06!important;border-color:#FCBC06!important;color:#000!important;font-weight:600!important}
+    .flatpickr-day.inRange{background:rgba(252,188,6,.12)!important;border-color:transparent!important;box-shadow:none!important;color:#fff!important}
+    .flatpickr-day.today:not(.selected){border-color:#FCBC06!important}
+    .flatpickr-day.flatpickr-disabled{color:#3a3a3a!important}
+
+    /* Sticky thead + tfoot */
+    .table-wrap { overflow-x: auto; }
+    .sticky-tfoot thead tr th { position: sticky; top: 0; background: #0d0d0d; z-index: 4; }
+    .sticky-tfoot tfoot tr td { position: sticky; bottom: 0; background: #1a1a1a; border-top: 2px solid #FCBC06; z-index: 4; }
 
     /* Scrollbar */
     ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -80,27 +103,32 @@
 
         <!-- Controls -->
         <div class="flex flex-wrap items-center gap-2">
-          <!-- Period buttons -->
-          <div class="flex gap-1 flex-wrap">
-            <button class="period-btn" data-period="today">Hoje</button>
-            <button class="period-btn" data-period="yesterday">Ontem</button>
-            <button class="period-btn" data-period="week">Esta semana</button>
-            <button class="period-btn" data-period="lastweek">Última semana</button>
-            <button class="period-btn active" data-period="month">Este mês</button>
-            <button class="period-btn" data-period="lastmonth">Mês passado</button>
-            <button class="period-btn" data-period="custom">Personalizado</button>
+          <!-- Period dropdown -->
+          <div class="relative" id="periodDropdownContainer">
+            <button id="periodDropdownBtn" class="period-btn active flex items-center gap-1.5">
+              <span id="periodLabel">Este mês</span>
+              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0">
+                <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <div id="periodDropdown" class="hidden absolute right-0 top-full mt-1 z-30 py-1"
+              style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;min-width:165px;box-shadow:0 8px 24px rgba(0,0,0,.75)">
+              <button class="period-option" data-period="today">Hoje</button>
+              <button class="period-option" data-period="yesterday">Ontem</button>
+              <button class="period-option" data-period="week">Esta semana</button>
+              <button class="period-option" data-period="lastweek">Última semana</button>
+              <button class="period-option active-option" data-period="month">Este mês</button>
+              <button class="period-option" data-period="lastmonth">Mês passado</button>
+              <button class="period-option" data-period="year">Este ano</button>
+              <div style="height:1px;background:#2a2a2a;margin:4px 12px"></div>
+              <button class="period-option" data-period="custom">Personalizado</button>
+            </div>
           </div>
-          <!-- Custom date pickers (hidden by default) -->
-          <div id="customDates" style="display:none" class="flex items-center gap-1.5 flex-wrap">
-            <input type="date" id="dateFrom"
-              class="rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
-              style="background:#1a1a1a;border:1px solid #2a2a2a">
-            <input type="date" id="dateTo"
-              class="rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
-              style="background:#1a1a1a;border:1px solid #2a2a2a">
-            <button id="btnApply"
-              class="rounded-lg px-3 py-1.5 text-xs font-semibold text-black"
-              style="background:#FCBC06">Filtrar</button>
+          <!-- Flatpickr range input (shown only for custom period) -->
+          <div id="customRange" style="display:none">
+            <input id="dateRangePicker" readonly placeholder="Selecionar período..."
+              class="rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none cursor-pointer"
+              style="background:#1a1a1a;border:1px solid #2a2a2a;min-width:190px">
           </div>
           <button id="btnReload" title="Recarregar dados"
             class="rounded-lg px-2.5 py-1.5 text-sm transition-colors hover:text-white"
@@ -237,14 +265,15 @@
         <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
           <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Campanhas</p>
         </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs" id="tableCampanhas">
+        <div class="table-wrap overflow-x-auto" style="max-height:520px;overflow-y:auto">
+          <table class="w-full text-xs sticky-tfoot" id="tableCampanhas">
             <thead style="background:#0d0d0d">
               <tr id="headCampanhas"></tr>
             </thead>
             <tbody id="bodyCampanhas">
               <tr><td colspan="12" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
             </tbody>
+            <tfoot id="footCampanhas"></tfoot>
           </table>
         </div>
       </div>
@@ -254,14 +283,15 @@
         <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
           <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Conjuntos de Anúncios</p>
         </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs" id="tableConjuntos">
+        <div class="table-wrap overflow-x-auto" style="max-height:520px;overflow-y:auto">
+          <table class="w-full text-xs sticky-tfoot" id="tableConjuntos">
             <thead style="background:#0d0d0d">
               <tr id="headConjuntos"></tr>
             </thead>
             <tbody id="bodyConjuntos">
               <tr><td colspan="12" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
             </tbody>
+            <tfoot id="footConjuntos"></tfoot>
           </table>
         </div>
       </div>
@@ -271,14 +301,15 @@
         <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
           <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Anúncios</p>
         </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs" id="tableAnuncios">
+        <div class="table-wrap overflow-x-auto" style="max-height:520px;overflow-y:auto">
+          <table class="w-full text-xs sticky-tfoot" id="tableAnuncios">
             <thead style="background:#0d0d0d">
               <tr id="headAnuncios"></tr>
             </thead>
             <tbody id="bodyAnuncios">
               <tr><td colspan="12" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
             </tbody>
+            <tfoot id="footAnuncios"></tfoot>
           </table>
         </div>
       </div>
@@ -300,10 +331,11 @@
         <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
           <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Campanhas — Comercial</p>
         </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs">
+        <div class="table-wrap overflow-x-auto" style="max-height:520px;overflow-y:auto">
+          <table class="w-full text-xs sticky-tfoot">
             <thead style="background:#0d0d0d"><tr id="headComCampanhas"></tr></thead>
             <tbody id="bodyComCampanhas"><tr><td colspan="13" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr></tbody>
+            <tfoot id="footComCampanhas"></tfoot>
           </table>
         </div>
       </div>
@@ -313,10 +345,11 @@
         <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
           <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Conjuntos — Comercial</p>
         </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs">
+        <div class="table-wrap overflow-x-auto" style="max-height:520px;overflow-y:auto">
+          <table class="w-full text-xs sticky-tfoot">
             <thead style="background:#0d0d0d"><tr id="headComConjuntos"></tr></thead>
             <tbody id="bodyComConjuntos"><tr><td colspan="13" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr></tbody>
+            <tfoot id="footComConjuntos"></tfoot>
           </table>
         </div>
       </div>
@@ -326,10 +359,11 @@
         <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
           <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Anúncios — Comercial</p>
         </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs">
+        <div class="table-wrap overflow-x-auto" style="max-height:520px;overflow-y:auto">
+          <table class="w-full text-xs sticky-tfoot">
             <thead style="background:#0d0d0d"><tr id="headComAnuncios"></tr></thead>
             <tbody id="bodyComAnuncios"><tr><td colspan="13" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr></tbody>
+            <tfoot id="footComAnuncios"></tfoot>
           </table>
         </div>
       </div>
@@ -342,6 +376,8 @@
 
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/pt.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
