@@ -459,12 +459,8 @@ function renderBody(bodyId, data, tableId) {
       <td class="px-3 py-2.5 text-right font-mono text-white">${r.cpl != null ? fmtBRL(r.cpl) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${r.cpmql != null ? '#9a9a9a' : '#3a3a3a'}">${r.cpmql != null ? fmtBRL(r.cpmql) : 'SEM MQL'}</td>
     </tr>
-  `).join('');
-
-  const footId = bodyId.replace('body', 'foot');
-  const tfoot  = document.getElementById(footId);
-  if (tfoot) tfoot.innerHTML = `
-    <tr>
+  `).join('') + `
+    <tr style="background:#1a1a1a;border-top:2px solid #FCBC06">
       <td class="px-3 py-2.5 text-xs font-bold" style="color:#FCBC06">TOTAL</td>
       <td class="px-3 py-2.5 text-right font-mono font-bold text-white">${tLeads}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${tSegs[0]}</td>
@@ -648,12 +644,8 @@ function renderBodyCom(bodyId, data, tableId) {
       <td class="px-3 py-2.5 text-right font-mono font-semibold" style="color:${Y}">${r.vendas}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${G}">${fmtN(r.cpv)}</td>
     </tr>
-  `).join('');
-
-  const footId = bodyId.replace('body', 'foot');
-  const tfoot  = document.getElementById(footId);
-  if (tfoot) tfoot.innerHTML = `
-    <tr>
+  `).join('') + `
+    <tr style="background:#1a1a1a;border-top:2px solid #FCBC06">
       <td class="px-3 py-2.5 text-xs font-bold" style="color:#FCBC06">TOTAL</td>
       <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${W}">${tL}</td>
       <td class="px-3 py-2.5 text-right font-mono font-bold" style="color:${Y}">${tM}</td>
