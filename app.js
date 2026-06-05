@@ -105,7 +105,7 @@ function parseLead(row) {
     dataAgend:       parseDate(row[12]),    // filtrado por data do agendamento
     dataReuniao:     parseDate(row[13]),   // filtrado por data da reunião
     auditoria:       row[14] || '',
-    dataEntrada:     row[15] || '',
+    dataEntrada:     parseDate(row[15]),   // filtrado por data de entrada (venda)
   };
 }
 
@@ -318,7 +318,7 @@ function renderSegmentChart(segs) {
 
 // ── KPI cards ───────────────────────────────────────────────────
 
-function renderKpis(leads, costs, reunAgendArr, reunReais) {
+function renderKpis(leads, costs, reunAgendArr, reunReais, vendasArr) {
   const total     = leads.length;
   const mqls      = leads.filter(isMql).length;
   const invest    = costs.reduce((s, c) => s + c.amountSpent, 0);
@@ -327,8 +327,8 @@ function renderKpis(leads, costs, reunAgendArr, reunReais) {
 
   const reunAgend   = reunAgendArr.length;
   const reunReal    = reunReais.length;
-  const vendas      = leads.filter(function(l) { return l.dataEntrada; }).length;
-  const receita     = leads.filter(function(l) { return l.dataEntrada; }).reduce(function(s, l) { return s + (l.valor || 0); }, 0);
+  const vendas      = vendasArr.length;
+  const receita     = vendasArr.reduce(function(s, l) { return s + (l.valor || 0); }, 0);
   const cpra        = reunAgend > 0 && invest > 0 ? invest / reunAgend : null;
   const cprr        = reunReal  > 0 && invest > 0 ? invest / reunReal  : null;
   const cpv         = vendas    > 0 && invest > 0 ? invest / vendas    : null;
@@ -522,7 +522,7 @@ const SORT_KEYS_COM = {
   cpv:          r => r.cpv    ?? Infinity,
 };
 
-function aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, leadKey, costKey) {
+function aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, vendasArr, leadKey, costKey) {
   const map = {};
 
   for (const l of leads) {
@@ -530,8 +530,7 @@ function aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, leadKey,
     if (!k) continue;
     if (!map[k]) map[k] = { name: k, leads: 0, mqls: 0, investimento: 0, ra: 0, rr: 0, vendas: 0 };
     map[k].leads++;
-    if (isMql(l))       map[k].mqls++;
-    if (l.dataEntrada)  map[k].vendas++;
+    if (isMql(l)) map[k].mqls++;
   }
 
   // RA: filtrado pela data do agendamento
@@ -540,10 +539,16 @@ function aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, leadKey,
     if (k && map[k]) map[k].ra++;
   }
 
-  // RR: filtrado pela data da reunião, agrupado pela mesma chave
+  // RR: filtrado pela data da reunião
   for (const l of reunReais) {
     const k = leadKey(l);
     if (k && map[k]) map[k].rr++;
+  }
+
+  // Vendas: filtrado pela data de entrada
+  for (const l of vendasArr) {
+    const k = leadKey(l);
+    if (k && map[k]) map[k].vendas++;
   }
 
   for (const c of costs) {
@@ -596,8 +601,9 @@ function renderHeadCom(headId, tableId) {
       const kfns      = getKeyFns(base);
       const bodyId    = `bodyCom${capitalize(base)}`;
       renderHeadCom(headId, tbl);
-      const _agendArr = allLeads.filter(function(l) { return l.campanhaTratada && l.dataAgend && inRange({ date: l.dataAgend }, filter); });
-      renderBodyCom(bodyId, aggregateGroupComercial(leads, costs, _agendArr, reunReais, ...kfns), tbl);
+      const _agendArr  = allLeads.filter(function(l) { return l.campanhaTratada && l.dataAgend    && inRange({ date: l.dataAgend    }, filter); });
+      const _vendasArr = allLeads.filter(function(l) { return l.campanhaTratada && l.dataEntrada && inRange({ date: l.dataEntrada }, filter); });
+      renderBodyCom(bodyId, aggregateGroupComercial(leads, costs, _agendArr, reunReais, _vendasArr, ...kfns), tbl);
     });
   });
 }
@@ -663,13 +669,13 @@ function renderBodyCom(bodyId, data, tableId) {
   `;
 }
 
-function renderAllTablesComercial(leads, costs, reunAgendArr, reunReais) {
+function renderAllTablesComercial(leads, costs, reunAgendArr, reunReais, vendasArr) {
   const tables = ['campanhas', 'conjuntos', 'anuncios'];
   tables.forEach(t => {
     const tCom  = t + 'C';
     const headId = `headCom${capitalize(t)}`;
     const bodyId = `bodyCom${capitalize(t)}`;
-    const data   = aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, ...getKeyFns(t));
+    const data   = aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, vendasArr, ...getKeyFns(t));
     renderHeadCom(headId, tCom);
     renderBodyCom(bodyId, data, tCom);
   });
@@ -769,12 +775,16 @@ function render() {
       && l.dataReuniao <= agora
       && inRange({ date: l.dataReuniao }, filter);
   });
+  // Vendas: filtrado pela DATA DE ENTRADA (não pela criação do lead)
+  const vendasArr = allLeads.filter(function(l) {
+    return l.campanhaTratada && l.dataEntrada && inRange({ date: l.dataEntrada }, filter);
+  });
 
-  renderKpis(leads, costs, reunAgendArr, reunReais);
+  renderKpis(leads, costs, reunAgendArr, reunReais, vendasArr);
   renderDailyChart(aggregateDaily(leads, filter.from, filter.to));
   renderSegmentChart(aggregateSegments(leads));
   renderAllTables(leads, costs);
-  renderAllTablesComercial(leads, costs, reunAgendArr, reunReais);
+  renderAllTablesComercial(leads, costs, reunAgendArr, reunReais, vendasArr);
 }
 
 // ── Data load ───────────────────────────────────────────────────
