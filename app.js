@@ -122,6 +122,7 @@ function parseCost(row) {
     campanha:    row[5] || '',
     conjunto:    row[6] || '',
     anuncio:     row[7] || '',
+    link:        row[9] || '',
   };
 }
 
@@ -164,7 +165,7 @@ function aggregateGroup(leads, costs, leadKey, costKey) {
     if (!map[k]) {
       const segs = {};
       SEGMENTS.forEach(s => segs[s.key] = 0);
-      map[k] = { name: k, leads: 0, mqls: 0, investimento: 0, segs };
+      map[k] = { name: k, leads: 0, mqls: 0, investimento: 0, link: '', segs };
     }
     map[k].leads++;
     if (isMql(l)) map[k].mqls++;
@@ -172,7 +173,10 @@ function aggregateGroup(leads, costs, leadKey, costKey) {
   }
   for (const c of costs) {
     const k = costKey(c);
-    if (k && map[k]) map[k].investimento += c.amountSpent;
+    if (k && map[k]) {
+      map[k].investimento += c.amountSpent;
+      if (!map[k].link && c.link) map[k].link = c.link;
+    }
   }
   return Object.values(map).map(r => ({
     ...r,
@@ -446,7 +450,7 @@ function renderBody(bodyId, data, tableId) {
 
   tbody.innerHTML = sorted.map((r, i) => `
     <tr style="background:${i % 2 ? 'transparent' : 'rgba(252,188,6,0.02)'}">
-      <td class="px-3 py-2.5" style="color:#e0e0e0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${labelOf(r.name, 38)}</td>
+      <td class="px-3 py-2.5" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${tableId === 'anuncios' && r.link ? `<a href="${r.link}" target="_blank" rel="noopener" style="color:#FCBC06;text-decoration:none;font-weight:500">${labelOf(r.name, 36)}</a>` : `<span style="color:#e0e0e0">${labelOf(r.name, 36)}</span>`}</td>
       <td class="px-3 py-2.5 text-right font-mono text-white">${r.leads}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${r.segs[SEGMENTS[0].key]}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${r.segs[SEGMENTS[1].key]}</td>
@@ -528,7 +532,7 @@ function aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, vendasAr
   for (const l of leads) {
     const k = leadKey(l);
     if (!k) continue;
-    if (!map[k]) map[k] = { name: k, leads: 0, mqls: 0, investimento: 0, ra: 0, rr: 0, vendas: 0 };
+    if (!map[k]) map[k] = { name: k, leads: 0, mqls: 0, investimento: 0, ra: 0, rr: 0, vendas: 0, link: '' };
     map[k].leads++;
     if (isMql(l)) map[k].mqls++;
   }
@@ -553,7 +557,10 @@ function aggregateGroupComercial(leads, costs, reunAgendArr, reunReais, vendasAr
 
   for (const c of costs) {
     const k = costKey(c);
-    if (k && map[k]) map[k].investimento += c.amountSpent;
+    if (k && map[k]) {
+      map[k].investimento += c.amountSpent;
+      if (!map[k].link && c.link) map[k].link = c.link;
+    }
   }
 
   return Object.values(map).map(r => ({
@@ -636,7 +643,7 @@ function renderBodyCom(bodyId, data, tableId) {
 
   tbody.innerHTML = sorted.map((r, i) => `
     <tr style="background:${i % 2 ? 'transparent' : 'rgba(252,188,6,0.02)'}">
-      <td class="px-3 py-2.5" style="color:#e0e0e0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${labelOf(r.name, 35)}</td>
+      <td class="px-3 py-2.5" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${tableId === 'anunciosC' && r.link ? `<a href="${r.link}" target="_blank" rel="noopener" style="color:#FCBC06;text-decoration:none;font-weight:500">${labelOf(r.name, 33)}</a>` : `<span style="color:#e0e0e0">${labelOf(r.name, 33)}</span>`}</td>
       <td class="px-3 py-2.5 text-right font-mono" style="color:${W}">${r.leads}</td>
       <td class="px-3 py-2.5 text-right font-mono font-semibold" style="color:${Y}">${r.mqls}</td>
       <td class="px-3 py-2.5 text-right font-mono" style="color:${W}">${fmtPct(r.mqls, r.leads)}</td>
@@ -792,7 +799,10 @@ function render() {
 async function loadData() {
   setStatus('Carregando dados...', 'loading');
   try {
-    const [kr, fr] = await Promise.all([fetch(KOMMO_URL), fetch(FB_URL)]);
+    const [kr, fr] = await Promise.all([
+      fetch(KOMMO_URL + '&_=' + Date.now()),
+      fetch(FB_URL    + '&_=' + Date.now()),
+    ]);
     if (!kr.ok || !fr.ok) throw new Error('HTTP error');
     const [kt, ft] = await Promise.all([kr.text(), fr.text()]);
 
