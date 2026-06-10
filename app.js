@@ -712,7 +712,7 @@ const PERIOD_LABELS = {
   custom:    'Personalizado',
 };
 
-let activePeriod = 'month';
+let activePeriod = 'week';
 
 function applyPeriod(period, skipRender) {
   activePeriod = period;
@@ -725,15 +725,15 @@ function applyPeriod(period, skipRender) {
     setDates(d, d);
   } else if (period === 'week') {
     const day = now.getDay();
-    const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-    setDates(mon, sun);
+    const sun = new Date(now); sun.setDate(now.getDate() - day);
+    const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+    setDates(sun, sat);
   } else if (period === 'lastweek') {
     const day = now.getDay();
-    const thisMon = new Date(now); thisMon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-    const lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate() - 7);
-    const lastSun = new Date(lastMon); lastSun.setDate(lastMon.getDate() + 6);
-    setDates(lastMon, lastSun);
+    const thisSun = new Date(now); thisSun.setDate(now.getDate() - day);
+    const lastSun = new Date(thisSun); lastSun.setDate(thisSun.getDate() - 7);
+    const lastSat = new Date(lastSun); lastSat.setDate(lastSun.getDate() + 6);
+    setDates(lastSun, lastSat);
   } else if (period === 'month') {
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
     const last  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
