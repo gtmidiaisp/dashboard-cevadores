@@ -486,6 +486,7 @@ function renderKpis(leads, costs, reunAgendArr, reunReais, vendasArr) {
 
 const TABLE_COLS = [
   { id: 'name',        label: 'Nome',          align: 'left',  sortable: true },
+  { id: 'trend',       label: 'Tendência',     align: 'center', sortable: false, cls: 'hide-mobile' },
   { id: 'leads',       label: 'Leads',         align: 'right', sortable: true },
   { id: 'seg0',        label: '100–1.500',     align: 'right', sortable: false, cls: 'hide-mobile' },
   { id: 'seg1',        label: '1.500–3.000',   align: 'right', sortable: false, cls: 'hide-mobile' },
@@ -497,7 +498,6 @@ const TABLE_COLS = [
   { id: 'investimento',label: 'Investimento',  align: 'right', sortable: true, cls: 'hide-mobile' },
   { id: 'cpl',         label: 'CPL',           align: 'right', sortable: true },
   { id: 'cpmql',       label: 'CPMQL',         align: 'right', sortable: true, cls: 'hide-mobile' },
-  { id: 'trend',       label: 'Tendência',     align: 'center', sortable: false, cls: 'hide-mobile' },
 ];
 
 const SORT_KEYS = {
@@ -577,6 +577,7 @@ function renderBody(bodyId, data, tableId, leads, costs, days) {
   tbody.innerHTML = sorted.map((r, i) => `
     <tr style="background:${i % 2 ? 'transparent' : 'rgba(252,188,6,0.02)'}">
       <td class="px-3 py-2.5" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${tableId === 'anuncios' && r.link ? `<a href="${r.link}" target="_blank" rel="noopener" style="color:#FCBC06;text-decoration:none;font-weight:500">${labelOf(r.name, 36)}</a>` : `<span style="color:#e0e0e0">${labelOf(r.name, 36)}</span>`}</td>
+      <td class="px-3 py-2.5 text-center hide-mobile">${(() => { const sig = trendSignal(r.name, leads, costs, days, leadKeyFn, costKeyFn); return sig ? TREND_ICON[sig] : '<span style="color:#3a3a3a">—</span>'; })()}</td>
       <td class="px-3 py-2.5 text-right font-mono text-white">${r.leads}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${r.segs[SEGMENTS[0].key]}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${r.segs[SEGMENTS[1].key]}</td>
@@ -588,11 +589,11 @@ function renderBody(bodyId, data, tableId, leads, costs, days) {
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${r.investimento > 0 ? fmtBRL(r.investimento) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono text-white">${r.cpl != null ? fmtBRL(r.cpl) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${r.cpmql != null ? '#9a9a9a' : '#3a3a3a'}">${r.cpmql != null ? fmtBRL(r.cpmql) : 'SEM MQL'}</td>
-      <td class="px-3 py-2.5 text-center hide-mobile">${(() => { const sig = trendSignal(r.name, leads, costs, days, leadKeyFn, costKeyFn); return sig ? TREND_ICON[sig] : '<span style="color:#3a3a3a">—</span>'; })()}</td>
     </tr>
   `).join('') + `
     <tr style="background:#1a1a1a;border-top:2px solid #FCBC06">
       <td class="px-3 py-2.5 text-xs font-bold" style="color:#FCBC06">TOTAL</td>
+      <td class="px-3 py-2.5 text-center hide-mobile"></td>
       <td class="px-3 py-2.5 text-right font-mono font-bold text-white">${tLeads}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${tSegs[0]}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${mqlColor}">${tSegs[1]}</td>
@@ -604,7 +605,6 @@ function renderBody(bodyId, data, tableId, leads, costs, days) {
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${tInvest > 0 ? fmtBRL(tInvest) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono font-bold text-white">${tCpl != null ? fmtBRL(tCpl) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${tCpmql != null ? '#9a9a9a' : '#3a3a3a'}">${tCpmql != null ? fmtBRL(tCpmql) : 'SEM MQL'}</td>
-      <td class="px-3 py-2.5 text-center hide-mobile"></td>
     </tr>
   `;
 }
