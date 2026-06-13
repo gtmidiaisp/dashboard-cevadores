@@ -481,6 +481,59 @@ function renderBody(bodyId, data, tableId) {
   `;
 }
 
+// ── ASR — Anúncios sem resultado ────────────────────────────────
+
+function aggregateASR(leads, costs) {
+  const leadKeys = new Set(leads.map(l => l.anuncioTratado).filter(Boolean));
+  const map = {};
+  for (const c of costs) {
+    const k = c.anuncio;
+    if (!k || leadKeys.has(k)) continue;
+    if (!map[k]) map[k] = { name: k, investimento: 0, link: '' };
+    map[k].investimento += c.amountSpent;
+    if (!map[k].link && c.link) map[k].link = c.link;
+  }
+  return Object.values(map).filter(r => r.investimento > 0).sort((a, b) => b.investimento - a.investimento);
+}
+
+function renderAsrSummary(leads, costs, asrData) {
+  const totalInvest = costs.reduce((s, c) => s + c.amountSpent, 0);
+  const semLead     = asrData.reduce((s, r) => s + r.investimento, 0);
+  const totalLeads  = leads.length;
+  const totalMqls   = leads.filter(isMql).length;
+  const cplReal     = totalLeads > 0 && totalInvest > 0 ? totalInvest / totalLeads : null;
+  const cpmqlReal   = totalMqls  > 0 && totalInvest > 0 ? totalInvest / totalMqls  : null;
+  const diffPct     = totalInvest > 0 ? (semLead / totalInvest * 100) : 0;
+
+  document.getElementById('asrInvestReal').textContent    = fmtBRL(totalInvest);
+  document.getElementById('asrInvestSemLead').textContent = fmtBRL(semLead);
+  document.getElementById('asrDiff').textContent          = diffPct.toFixed(1) + '%';
+  document.getElementById('asrCplReal').textContent       = cplReal   != null ? fmtBRL(cplReal)   : '—';
+  document.getElementById('asrCpmqlReal').textContent     = cpmqlReal != null ? fmtBRL(cpmqlReal) : '—';
+}
+
+function renderAsrTable(asrData) {
+  const tbody = document.getElementById('bodyAsr');
+  if (!asrData.length) {
+    tbody.innerHTML = `<tr><td colspan="2" class="px-4 py-10 text-center" style="color:#3a3a3a">Nenhum anúncio sem retorno no período.</td></tr>`;
+    return;
+  }
+
+  const total = asrData.reduce((s, r) => s + r.investimento, 0);
+
+  tbody.innerHTML = asrData.map((r, i) => `
+    <tr style="background:${i % 2 ? 'transparent' : 'rgba(252,188,6,0.02)'}">
+      <td class="px-3 py-2.5" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${r.link ? `<a href="${r.link}" target="_blank" rel="noopener" style="color:#FCBC06;text-decoration:none;font-weight:500">${labelOf(r.name, 50)}</a>` : `<span style="color:#e0e0e0">${labelOf(r.name, 50)}</span>`}</td>
+      <td class="px-3 py-2.5 text-right font-mono text-white">${fmtBRL(r.investimento)}</td>
+    </tr>
+  `).join('') + `
+    <tr style="background:#1a1a1a;border-top:2px solid #FCBC06">
+      <td class="px-3 py-2.5 text-xs font-bold" style="color:#FCBC06">TOTAL</td>
+      <td class="px-3 py-2.5 text-right font-mono font-bold text-white">${fmtBRL(total)}</td>
+    </tr>
+  `;
+}
+
 function renderAllTables(leads, costs) {
   const tables = ['campanhas', 'conjuntos', 'anuncios'];
   tables.forEach(t => {
@@ -792,6 +845,10 @@ function render() {
   renderSegmentChart(aggregateSegments(leads));
   renderAllTables(leads, costs);
   renderAllTablesComercial(leads, costs, reunAgendArr, reunReais, vendasArr);
+
+  const asrData = aggregateASR(leads, costs);
+  renderAsrSummary(leads, costs, asrData);
+  renderAsrTable(asrData);
 }
 
 // ── Data load ───────────────────────────────────────────────────

@@ -258,6 +258,7 @@
         <button class="sec-btn active" data-sec="campanhas">Campanhas</button>
         <button class="sec-btn" data-sec="conjuntos">Conjuntos</button>
         <button class="sec-btn" data-sec="anuncios">Anúncios</button>
+        <button class="sec-btn" data-sec="asr">ASR</button>
       </div>
 
       <!-- Campanhas table -->
@@ -301,6 +302,28 @@
         <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
           <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Anúncios</p>
         </div>
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 px-4 py-3" style="border-bottom:1px solid #1a1a1a;background:#0d0d0d">
+          <div>
+            <p class="text-[10px] uppercase tracking-wider" style="color:#6B6B6B">Investido real</p>
+            <p class="font-mono text-sm text-white mt-0.5" id="asrInvestReal">—</p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-wider" style="color:#6B6B6B">Sem lead</p>
+            <p class="font-mono text-sm mt-0.5" style="color:#f87171" id="asrInvestSemLead">—</p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-wider" style="color:#6B6B6B">Diferença</p>
+            <p class="font-mono text-sm text-white mt-0.5" id="asrDiff">—</p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-wider" style="color:#6B6B6B">CPL real</p>
+            <p class="font-mono text-sm mt-0.5" style="color:#FCBC06" id="asrCplReal">—</p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-wider" style="color:#6B6B6B">CPMQL real</p>
+            <p class="font-mono text-sm mt-0.5" style="color:#FCBC06" id="asrCpmqlReal">—</p>
+          </div>
+        </div>
         <div class="overflow-x-auto">
           <table class="w-full text-xs sticky-tfoot" id="tableAnuncios">
             <thead style="background:#0d0d0d">
@@ -310,6 +333,26 @@
               <tr><td colspan="12" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
             </tbody>
             <tfoot id="footAnuncios"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- ASR table (anúncios sem retorno) -->
+      <div id="sec-asr" class="sec-panel card overflow-hidden">
+        <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">ASR — Anúncios Sem Resultado</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs sticky-tfoot" id="tableAsr">
+            <thead style="background:#0d0d0d">
+              <tr>
+                <th class="px-3 py-2.5 text-left text-xs font-medium" style="color:#6B6B6B">Anúncio</th>
+                <th class="px-3 py-2.5 text-right text-xs font-medium" style="color:#6B6B6B">Investimento</th>
+              </tr>
+            </thead>
+            <tbody id="bodyAsr">
+              <tr><td colspan="2" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
+            </tbody>
           </table>
         </div>
       </div>
