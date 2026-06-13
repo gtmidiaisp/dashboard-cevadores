@@ -303,7 +303,7 @@ function renderDailyChart(series) {
 
 const TREND_COLORS = ['#FCBC06', '#ffffff', '#4ade80', '#60a5fa', '#f87171'];
 const TREND_WINDOW = 3;
-const TREND_ICON = { high: '📈', mid: '➡️', low: '📉' };
+const TREND_ICON = { high: '🔴', mid: '🟡', low: '🟢' };
 
 // Compara o CPL dos últimos TREND_WINDOW dias com a janela anterior.
 // 'high' = subiu 30%+, 'mid' = subiu 10-30%, 'low' = estável/caindo, null = dados insuficientes
@@ -519,7 +519,7 @@ function sortArrows(state, colId) {
 function renderHead(headId, tableId) {
   const state = tableSort[tableId];
   document.getElementById(headId).innerHTML = TABLE_COLS.map(col => `
-    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}" style="color:#6B6B6B;white-space:nowrap" ${col.id === 'trend' ? 'title="Tendência do CPL: 📈 subiu 30%+ · ➡️ subiu 10-30% · 📉 estável/caindo · — dados insuficientes"' : ''}>
+    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}" style="color:#6B6B6B;white-space:nowrap" ${col.id === 'trend' ? 'title="Tendência do CPL: 🔴 subiu 30%+ (considere desligar) · 🟡 subiu 10-30% (atenção) · 🟢 estável/caindo (ok) · — dados insuficientes"' : ''}>
       ${col.label}${col.sortable ? ' ' + sortArrows(state, col.id) : ''}
     </th>
   `).join('');
