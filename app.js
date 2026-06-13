@@ -301,6 +301,86 @@ function renderDailyChart(series) {
   });
 }
 
+const TREND_COLORS = ['#FCBC06', '#ffffff', '#4ade80', '#60a5fa', '#f87171'];
+const TREND_WINDOW = 3;
+
+function aggregateTrends(leads, costs, filter) {
+  const adsAgg = aggregateGroup(leads, costs, l => l.anuncioTratado, c => c.anuncio)
+    .filter(r => r.leads > 0)
+    .sort((a, b) => b.leads - a.leads)
+    .slice(0, 5);
+
+  if (!adsAgg.length || !filter.from || !filter.to) return { labels: [], series: [] };
+
+  const days = [];
+  const d = new Date(filter.from);
+  while (d <= filter.to) {
+    days.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 1);
+  }
+
+  const series = adsAgg.map(ad => {
+    const dailySpend = {}, dailyLeads = {};
+    days.forEach(day => { dailySpend[day] = 0; dailyLeads[day] = 0; });
+    for (const c of costs) {
+      if (c.anuncio !== ad.name) continue;
+      const day = c.date.toISOString().slice(0, 10);
+      if (dailySpend[day] !== undefined) dailySpend[day] += c.amountSpent;
+    }
+    for (const l of leads) {
+      if (l.anuncioTratado !== ad.name) continue;
+      const day = l.date.toISOString().slice(0, 10);
+      if (dailyLeads[day] !== undefined) dailyLeads[day]++;
+    }
+
+    const cplSeries = days.map((day, i) => {
+      let spendSum = 0, leadsSum = 0;
+      for (let j = Math.max(0, i - TREND_WINDOW + 1); j <= i; j++) {
+        spendSum  += dailySpend[days[j]];
+        leadsSum  += dailyLeads[days[j]];
+      }
+      return leadsSum > 0 ? spendSum / leadsSum : null;
+    });
+
+    return { name: ad.name, data: cplSeries };
+  });
+
+  return { labels: days, series };
+}
+
+function renderTrendsChart(trends) {
+  const { labels, series } = trends;
+  const fmtLabels = labels.map(day => {
+    const [, m, dd] = day.split('-');
+    return `${dd}/${m}`;
+  });
+
+  mkChart('chartTrends', 'line', {
+    labels: fmtLabels,
+    datasets: series.map((s, i) => ({
+      label: labelOf(s.name, 30),
+      data: s.data,
+      borderColor: TREND_COLORS[i % TREND_COLORS.length],
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      spanGaps: true,
+      pointRadius: labels.length > 40 ? 0 : 3,
+      pointHoverRadius: 5,
+      tension: 0.3,
+    })),
+  }, {
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: C.gray, boxWidth: 10, padding: 14, font: { size: 11 } } },
+      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y != null ? fmtBRL(ctx.parsed.y) : '—'}` } },
+    },
+    scales: {
+      x: { ticks: { color: C.gray, font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: '#1a1a1a' } },
+      y: { ticks: { color: C.gray, font: { size: 10 }, callback: v => 'R$ ' + v }, grid: { color: '#1a1a1a' }, beginAtZero: true },
+    },
+  });
+}
+
 function renderSegmentChart(segs) {
   mkChart('chartSegments', 'doughnut', {
     labels: segs.map(s => s.label),
@@ -849,6 +929,8 @@ function render() {
   const asrData = aggregateASR(leads, costs);
   renderAsrSummary(leads, costs, asrData);
   renderAsrTable(asrData);
+
+  renderTrendsChart(aggregateTrends(leads, costs, filter));
 }
 
 // ── Data load ───────────────────────────────────────────────────

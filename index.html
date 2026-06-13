@@ -259,6 +259,7 @@
         <button class="sec-btn" data-sec="conjuntos">Conjuntos</button>
         <button class="sec-btn" data-sec="anuncios">Anúncios</button>
         <button class="sec-btn" data-sec="asr">ASR</button>
+        <button class="sec-btn" data-sec="tendencias">Tendências</button>
       </div>
 
       <!-- Campanhas table -->
@@ -354,6 +355,16 @@
               <tr><td colspan="2" class="px-4 py-8 text-center" style="color:#3a3a3a">Carregando...</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Tendências -->
+      <div id="sec-tendencias" class="sec-panel card overflow-hidden">
+        <div class="px-4 py-3" style="border-bottom:1px solid #1a1a1a">
+          <p class="text-xs font-semibold uppercase tracking-wider" style="color:#6B6B6B">Tendência de CPL — Top 5 Anúncios (média móvel 3 dias)</p>
+        </div>
+        <div class="p-4 chart-h" style="height:340px;position:relative">
+          <canvas id="chartTrends"></canvas>
         </div>
       </div>
 
