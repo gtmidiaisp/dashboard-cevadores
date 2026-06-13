@@ -352,32 +352,14 @@ function buildPeriodDays(filter) {
   return days;
 }
 
-const PROJECTION_DAYS = 7;
-
-// Regressão linear simples: pontos {x, y} → {slope, intercept}
-function linearRegression(points) {
-  const pts = points.filter(p => p.y != null);
-  if (pts.length < 2) return null;
-  const n = pts.length;
-  const sumX  = pts.reduce((s, p) => s + p.x, 0);
-  const sumY  = pts.reduce((s, p) => s + p.y, 0);
-  const sumXY = pts.reduce((s, p) => s + p.x * p.y, 0);
-  const sumXX = pts.reduce((s, p) => s + p.x * p.x, 0);
-  const denom = n * sumXX - sumX * sumX;
-  if (denom === 0) return null;
-  const slope     = (n * sumXY - sumX * sumY) / denom;
-  const intercept = (sumY - slope * sumX) / n;
-  return { slope, intercept };
-}
-
-function aggregateTrends(leads, costs, filter, withProjection) {
+function aggregateTrends(leads, costs, filter) {
   const adsAgg = aggregateGroup(leads, costs, l => l.anuncioTratado, c => c.anuncio)
     .filter(r => r.leads > 0)
     .sort((a, b) => b.leads - a.leads)
     .slice(0, 5);
 
   const days = buildPeriodDays(filter);
-  if (!adsAgg.length || !days.length) return { labels: [], series: [], projectionDays: 0 };
+  if (!adsAgg.length || !days.length) return { labels: [], series: [] };
 
   const series = adsAgg.map(ad => {
     const dailySpend = {}, dailyLeads = {};
@@ -402,91 +384,36 @@ function aggregateTrends(leads, costs, filter, withProjection) {
       return leadsSum > 0 ? spendSum / leadsSum : null;
     });
 
-    let projection = [];
-    if (withProjection) {
-      const reg = linearRegression(cplSeries.map((y, i) => ({ x: i, y })));
-      if (reg) {
-        const lastIndex = cplSeries.length - 1;
-        projection = Array.from({ length: PROJECTION_DAYS }, (_, k) =>
-          Math.max(0, reg.slope * (lastIndex + 1 + k) + reg.intercept)
-        );
-      }
-    }
-
-    return { name: ad.name, data: cplSeries, projection };
+    return { name: ad.name, data: cplSeries };
   });
 
-  return { labels: days, series, projectionDays: withProjection ? PROJECTION_DAYS : 0 };
-}
-
-function hexToRgba(hex, alpha) {
-  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
+  return { labels: days, series };
 }
 
 function renderTrendsChart(trends) {
-  const { labels, series, projectionDays = 0 } = trends;
-
-  // Datas futuras para a projeção (continuação a partir do último dia real)
-  const projLabelDates = [];
-  if (projectionDays > 0 && labels.length) {
-    const lastDate = new Date(labels[labels.length - 1] + 'T00:00:00');
-    for (let i = 1; i <= projectionDays; i++) {
-      const d = new Date(lastDate); d.setDate(d.getDate() + i);
-      projLabelDates.push(d.toISOString().slice(0, 10));
-    }
-  }
-
-  const allLabels = [...labels, ...projLabelDates];
-  const fmtLabels = allLabels.map(day => {
+  const { labels, series } = trends;
+  const fmtLabels = labels.map(day => {
     const [, m, dd] = day.split('-');
     return `${dd}/${m}`;
   });
 
-  const datasets = [];
-  series.forEach((s, i) => {
-    const color = TREND_COLORS[i % TREND_COLORS.length];
-    datasets.push({
+  mkChart('chartTrends', 'line', {
+    labels: fmtLabels,
+    datasets: series.map((s, i) => ({
       label: labelOf(s.name, 30),
-      data: [...s.data, ...Array(projectionDays).fill(null)],
-      borderColor: color,
+      data: s.data,
+      borderColor: TREND_COLORS[i % TREND_COLORS.length],
       backgroundColor: 'transparent',
       borderWidth: 2,
       spanGaps: true,
       pointRadius: labels.length > 40 ? 0 : 3,
       pointHoverRadius: 5,
       tension: 0.3,
-    });
-
-    if (projectionDays > 0 && s.projection.length) {
-      datasets.push({
-        label: labelOf(s.name, 30) + ' (projeção)',
-        data: [...Array(labels.length - 1).fill(null), s.data[s.data.length - 1], ...s.projection],
-        borderColor: hexToRgba(color, 0.35),
-        backgroundColor: 'transparent',
-        borderWidth: 2,
-        borderDash: [5, 5],
-        spanGaps: true,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        tension: 0.3,
-        isProjection: true,
-      });
-    }
-  });
-
-  mkChart('chartTrends', 'line', {
-    labels: fmtLabels,
-    datasets,
+    })),
   }, {
     interaction: { mode: 'nearest', axis: 'xy', intersect: true },
     plugins: {
-      legend: {
-        labels: {
-          color: C.gray, boxWidth: 10, padding: 14, font: { size: 11 },
-          filter: item => !item.text.endsWith('(projeção)'),
-        },
-      },
+      legend: { labels: { color: C.gray, boxWidth: 10, padding: 14, font: { size: 11 } } },
       tooltip: {
         mode: 'nearest', axis: 'xy', intersect: true,
         callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y != null ? fmtBRL(ctx.parsed.y) : '—'}` },
@@ -1054,7 +981,7 @@ function render() {
   renderAsrSummary(leads, costs, asrData);
   renderAsrTable(asrData);
 
-  renderTrendsChart(aggregateTrends(leads, costs, filter, activePeriod === 'month'));
+  renderTrendsChart(aggregateTrends(leads, costs, filter));
 }
 
 // ── Data load ───────────────────────────────────────────────────
