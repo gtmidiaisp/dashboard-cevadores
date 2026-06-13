@@ -303,6 +303,52 @@ function renderDailyChart(series) {
 
 const TREND_COLORS = ['#FCBC06', '#ffffff', '#4ade80', '#60a5fa', '#f87171'];
 const TREND_WINDOW = 3;
+const TREND_ICON = { high: '🔴', mid: '🟡', low: '🟢' };
+
+// Compara o CPL dos últimos TREND_WINDOW dias com a janela anterior.
+// 'high' = subiu 30%+, 'mid' = subiu 10-30%, 'low' = estável/caindo, null = dados insuficientes
+function trendSignal(name, leads, costs, days, leadKeyFn, costKeyFn) {
+  if (days.length < TREND_WINDOW * 2) return null;
+
+  const n = days.length;
+  const recentDays = new Set(days.slice(n - TREND_WINDOW));
+  const prevDays   = new Set(days.slice(n - 2 * TREND_WINDOW, n - TREND_WINDOW));
+
+  let recentSpend = 0, recentLeads = 0, prevSpend = 0, prevLeads = 0;
+  for (const c of costs) {
+    if (costKeyFn(c) !== name) continue;
+    const day = c.date.toISOString().slice(0, 10);
+    if (recentDays.has(day)) recentSpend += c.amountSpent;
+    else if (prevDays.has(day)) prevSpend += c.amountSpent;
+  }
+  for (const l of leads) {
+    if (leadKeyFn(l) !== name) continue;
+    const day = l.date.toISOString().slice(0, 10);
+    if (recentDays.has(day)) recentLeads++;
+    else if (prevDays.has(day)) prevLeads++;
+  }
+
+  if (recentLeads === 0 || prevLeads === 0) return null;
+  const cplRecent = recentSpend / recentLeads;
+  const cplPrev   = prevSpend   / prevLeads;
+  if (cplPrev === 0) return null;
+
+  const change = (cplRecent - cplPrev) / cplPrev;
+  if (change >= 0.3) return 'high';
+  if (change >= 0.1) return 'mid';
+  return 'low';
+}
+
+function buildPeriodDays(filter) {
+  if (!filter.from || !filter.to) return [];
+  const days = [];
+  const d = new Date(filter.from);
+  while (d <= filter.to) {
+    days.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 1);
+  }
+  return days;
+}
 
 function aggregateTrends(leads, costs, filter) {
   const adsAgg = aggregateGroup(leads, costs, l => l.anuncioTratado, c => c.anuncio)
@@ -310,14 +356,8 @@ function aggregateTrends(leads, costs, filter) {
     .sort((a, b) => b.leads - a.leads)
     .slice(0, 5);
 
-  if (!adsAgg.length || !filter.from || !filter.to) return { labels: [], series: [] };
-
-  const days = [];
-  const d = new Date(filter.from);
-  while (d <= filter.to) {
-    days.push(d.toISOString().slice(0, 10));
-    d.setDate(d.getDate() + 1);
-  }
+  const days = buildPeriodDays(filter);
+  if (!adsAgg.length || !days.length) return { labels: [], series: [] };
 
   const series = adsAgg.map(ad => {
     const dailySpend = {}, dailyLeads = {};
@@ -369,10 +409,13 @@ function renderTrendsChart(trends) {
       tension: 0.3,
     })),
   }, {
-    interaction: { mode: 'index', intersect: false },
+    interaction: { mode: 'nearest', axis: 'xy', intersect: true },
     plugins: {
       legend: { labels: { color: C.gray, boxWidth: 10, padding: 14, font: { size: 11 } } },
-      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y != null ? fmtBRL(ctx.parsed.y) : '—'}` } },
+      tooltip: {
+        mode: 'nearest', axis: 'xy', intersect: true,
+        callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y != null ? fmtBRL(ctx.parsed.y) : '—'}` },
+      },
     },
     scales: {
       x: { ticks: { color: C.gray, font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: '#1a1a1a' } },
@@ -454,6 +497,7 @@ const TABLE_COLS = [
   { id: 'investimento',label: 'Investimento',  align: 'right', sortable: true, cls: 'hide-mobile' },
   { id: 'cpl',         label: 'CPL',           align: 'right', sortable: true },
   { id: 'cpmql',       label: 'CPMQL',         align: 'right', sortable: true, cls: 'hide-mobile' },
+  { id: 'trend',       label: 'Tendência',     align: 'center', sortable: false, cls: 'hide-mobile' },
 ];
 
 const SORT_KEYS = {
@@ -475,7 +519,7 @@ function sortArrows(state, colId) {
 function renderHead(headId, tableId) {
   const state = tableSort[tableId];
   document.getElementById(headId).innerHTML = TABLE_COLS.map(col => `
-    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}" style="color:#6B6B6B;white-space:nowrap">
+    <th class="px-3 py-2.5 text-${col.align} text-xs font-medium ${col.cls || ''}" style="color:#6B6B6B;white-space:nowrap" ${col.id === 'trend' ? 'title="Tendência do CPL: 🔴 subiu 30%+ · 🟡 subiu 10-30% · 🟢 estável/caindo · — dados insuficientes"' : ''}>
       ${col.label}${col.sortable ? ' ' + sortArrows(state, col.id) : ''}
     </th>
   `).join('');
@@ -488,9 +532,10 @@ function renderHead(headId, tableId) {
       const filter = getFilter();
       const leads  = allLeads.filter(l => inRange(l, filter) && l.campanhaTratada);
       const costs  = allCosts.filter(c => inRange(c, filter));
+      const days   = buildPeriodDays(filter);
       const data   = aggregateGroup(leads, costs, ...getKeyFns(tbl));
       renderHead(headId, tbl);
-      renderBody(`body${capitalize(tbl)}`, data, tbl);
+      renderBody(`body${capitalize(tbl)}`, data, tbl, leads, costs, days);
     });
   });
 }
@@ -503,7 +548,7 @@ function getKeyFns(tableId) {
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-function renderBody(bodyId, data, tableId) {
+function renderBody(bodyId, data, tableId, leads, costs, days) {
   const state = tableSort[tableId];
   const fn    = SORT_KEYS[state.col] || (r => r[state.col]);
   const dir   = state.asc ? 1 : -1;
@@ -514,11 +559,12 @@ function renderBody(bodyId, data, tableId) {
 
   const tbody = document.getElementById(bodyId);
   if (!sorted.length) {
-    tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-10 text-center" style="color:#3a3a3a">Sem dados no período.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-10 text-center" style="color:#3a3a3a">Sem dados no período.</td></tr>`;
     return;
   }
 
   const mqlColor = C.yellow;
+  const [leadKeyFn, costKeyFn] = getKeyFns(tableId);
 
   // Totals from full data set (regardless of sort order)
   const tLeads  = data.reduce((s, r) => s + r.leads, 0);
@@ -542,6 +588,7 @@ function renderBody(bodyId, data, tableId) {
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${r.investimento > 0 ? fmtBRL(r.investimento) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono text-white">${r.cpl != null ? fmtBRL(r.cpl) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${r.cpmql != null ? '#9a9a9a' : '#3a3a3a'}">${r.cpmql != null ? fmtBRL(r.cpmql) : 'SEM MQL'}</td>
+      <td class="px-3 py-2.5 text-center hide-mobile">${(() => { const sig = trendSignal(r.name, leads, costs, days, leadKeyFn, costKeyFn); return sig ? TREND_ICON[sig] : '<span style="color:#3a3a3a">—</span>'; })()}</td>
     </tr>
   `).join('') + `
     <tr style="background:#1a1a1a;border-top:2px solid #FCBC06">
@@ -557,6 +604,7 @@ function renderBody(bodyId, data, tableId) {
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:#6B6B6B">${tInvest > 0 ? fmtBRL(tInvest) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono font-bold text-white">${tCpl != null ? fmtBRL(tCpl) : '—'}</td>
       <td class="px-3 py-2.5 text-right font-mono hide-mobile" style="color:${tCpmql != null ? '#9a9a9a' : '#3a3a3a'}">${tCpmql != null ? fmtBRL(tCpmql) : 'SEM MQL'}</td>
+      <td class="px-3 py-2.5 text-center hide-mobile"></td>
     </tr>
   `;
 }
@@ -615,13 +663,14 @@ function renderAsrTable(asrData) {
 }
 
 function renderAllTables(leads, costs) {
+  const days = buildPeriodDays(getFilter());
   const tables = ['campanhas', 'conjuntos', 'anuncios'];
   tables.forEach(t => {
     const headId = `head${capitalize(t)}`;
     const bodyId = `body${capitalize(t)}`;
     const data = aggregateGroup(leads, costs, ...getKeyFns(t));
     renderHead(headId, t);
-    renderBody(bodyId, data, t);
+    renderBody(bodyId, data, t, leads, costs, days);
   });
 }
 
