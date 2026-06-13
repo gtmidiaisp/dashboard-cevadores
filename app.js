@@ -341,9 +341,11 @@ function trendSignal(name, leads, costs, days, leadKeyFn, costKeyFn) {
 
 function buildPeriodDays(filter) {
   if (!filter.from || !filter.to) return [];
+  const today = new Date();
+  const end = filter.to < today ? filter.to : today;
   const days = [];
   const d = new Date(filter.from);
-  while (d <= filter.to) {
+  while (d <= end) {
     days.push(d.toISOString().slice(0, 10));
     d.setDate(d.getDate() + 1);
   }
